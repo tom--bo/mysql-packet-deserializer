@@ -12,9 +12,6 @@ func DeserializePacket(packet []byte) []IMySQLPacket {
 	for plen-nowPos > 0 {
 		pktLen := int(uint32(packet[nowPos]) | uint32(packet[nowPos+1])<<8 | uint32(packet[nowPos+2])<<16)
 
-		if plen != pktLen+4 {
-			return nil
-		}
 		mysqlPackets = append(mysqlPackets, mapPacket(pktLen, packet[nowPos:nowPos+(4+pktLen)]))
 		nowPos += 4 + pktLen
 
@@ -41,7 +38,7 @@ func judgeStatusFlags(packet []byte) []GeneralPacketStatusFlag {
 }
 
 func judgeLengthEncodedInt([]byte) (int, int) {
-	return 1, 1 // ??
+	return 0, 0 // ??
 }
 
 func mapPacket(plen int, packet []byte) IMySQLPacket {
@@ -169,6 +166,7 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 			// response
 		}
 	case 0x04: // COM_FIELD_LIST
+		// return 1 byte content COM_FIELD_LIST packet struct when plen == 1 ??
 		nullPos := -1
 		for i, v := range packet[5:] {
 			if v == 0x00 {
