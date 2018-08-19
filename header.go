@@ -1,8 +1,21 @@
-package mysql-packet-deserializer
+package mysqlpacket
 
 type CommandType string
 
 const (
+	// Connection Phase Packet
+	HANDSHAKE_V10                       = "HANDSHAKE_V10"
+	HANDSHAKE_RESPONSE41                = "HANDSHAKE_RESPONSE41"
+	SSL_REQUEST                         = "SSL_REQUEST"
+	AUTH_SWITCH_REQUEST                 = "AUTH_SWITCH_REQUEST"
+	OLD_AUTH_SWITCH_REQUEST             = "OLD_AUTH_SWITCH_REQUEST"
+	AUTH_SWITCH_RESPONSE                = "AUTH_SWITCH_RESPONSE"
+	AUTH_MORE_DATA                      = "AUTH_MORE_DATA"
+	// General Response Packet
+	OK_PACKET                           = "OK_PACKET"
+	ERR_PACKET                          = "ERR_PACKET"
+	EOF_PACKET                          = "EOF_PACKET"
+	// Command Phase Packet
 	COM_SLEEP               CommandType = "COM_SLEEP"
 	COM_QUIT                            = "COM_QUIT"
 	COM_INIT_DB                         = "COM_INIT_DB"
@@ -35,8 +48,20 @@ const (
 	COM_DAEMON                          = "COM_DAEMON"
 	COM_BINLOG_DUMP_GTID                = "COM_BINLOG_DUMP_GTID"
 	COM_RESET_CONNECTION                = "COM_RESET_CONNECTION"
-
+	// Unknown or Not Supported Packet
 	UNKNOWN_PACKET                      = "UNKNOWN_PACKET"
+)
+
+type CharacterSet string
+
+const (
+	UNKNOWN_CHARACTER_SET CharacterSet   = "UNKNOWN_CHARACTER_SET"
+)
+
+type CapacityFlag string
+
+const (
+	UNKNOWN_CAPACITY_FLAG CapacityFlag   = "UNKNOWN_CAPACITY_FLAG"
 )
 
 /*
@@ -50,7 +75,7 @@ const (
 		string([]byte{0x00, 0x00, 0x00, 0x40}): "CLIENT_ODBC",
 		string([]byte{0x00, 0x00, 0x00, 0x80}): "CLIENT_LOCAL_FILES",
 		string([]byte{0x00, 0x00, 0x01, 0x00}): "CLIENT_IGNORE_SPACE",
-		string([]byte{0x00, 0x00, 0x02, 0x00}): "CLIENT_PROTOCOL_41",
+		string([]byte{0x00, 0x00, 0x02, 0x00}): "CLIENT_41",
 		string([]byte{0x00, 0x00, 0x04, 0x00}): "CLIENT_INTERACTIVE",
 		string([]byte{0x00, 0x00, 0x08, 0x00}): "CLIENT_SSL",
 		string([]byte{0x00, 0x00, 0x10, 0x00}): "CLIENT_IGNORE_SIGPIPE",
@@ -114,12 +139,6 @@ const (
 	COM_BINLOG_DUMP_FLAG_UNKONWN = "COM_BINLOG_DUMP_FLAG_UNKONWN"
 )
 
-type CharacterSetFlag string
-
-const (
-	UNKNOWN_CHARACTER_SET CharacterSetFlag = "UNKNOWN_CHARACTER_SET"
-)
-
 type ComSTMTExecuteFlags string
 
 const (
@@ -151,6 +170,80 @@ type MySQLHeader struct {
 	PayloadLength uint32
 	SequenceID    uint8
 }
+
+/*
+ * Initial Handshake Packet
+ */
+
+type HandshakeV10 struct {
+	Header MySQLHeader
+	*Command
+	ServerVersion string
+	ConnectionID int
+	AuthPluginDataPart1 string
+	CapabilityFlagsLower2Bytes []byte
+	// Not implemented completely now ...
+}
+
+type HandshakeResponse41 struct {
+	Header MySQLHeader
+	*Command
+	CapacityFlag []CapacityFlag
+	MaxPacketSize int
+	CharacterSet CharacterSet
+}
+
+type SSLRequest struct {
+	Header MySQLHeader
+	*Command
+	CapacityFlag []CapacityFlag
+	MaxPacketSize int
+	CharacterSet CharacterSet
+}
+
+type AuthSwitchRequest struct {
+	Header MySQLHeader
+	*Command
+	PluginName string
+	AuthPluginData string
+}
+
+type OldAuthSwitchRequest struct {
+	Header MySQLHeader
+	*Command
+}
+
+type AuthSwitchResponse struct {
+	Header MySQLHeader
+	*Command
+	AuthPluginResponse string
+}
+
+type AuthMoreData struct {
+	Header MySQLHeader
+	*Command
+	PluginData string
+}
+
+/*
+ * General Response Packet
+ */
+
+type OKPacket struct {
+	Header MySQLHeader
+	*Command
+}
+
+type ERRPacket struct {
+	Header MySQLHeader
+	*Command
+}
+
+type EOFPacket struct {
+	Header MySQLHeader
+	*Command
+}
+
 
 /*
  * Command Phase
@@ -257,7 +350,7 @@ type ComChangeUser struct {
 	AuthResponseLen int
 	AuthResponse string
 	SchemaName string
-	CharacterSet CharacterSetFlag
+	CharacterSet CharacterSet
 	AuthPluginName string
 	LengthOfAllKeyValues int
 	Data map[string]string // Key Value pair

@@ -1,4 +1,4 @@
-package mysql-packet-deserializer
+package mysqlpacket
 
 /*
  * Desirialize method
@@ -25,13 +25,52 @@ func DeserializePacket(packet []byte) []IMySQLPacket {
 	return mysqlPackets
 }
 
+func judgeCapacityFlags(packets []byte) []CapacityFlag {
+	return []CapacityFlag{UNKNOWN_CAPACITY_FLAG}
+}
+
+func judgeCharacterSet(cset byte) CharacterSet {
+	return UNKNOWN_CHARACTER_SET
+}
+
 func mapPacket(plen int, packet []byte) IMySQLPacket {
 	sid := int(packet[3])
 	ctype := packet[4]
 	mHeader := MySQLHeader{uint32(plen), uint8(sid)}
+
 	/*
 	 * general response or connection phase packet
 	 */
+
+	// At first, judge no header packet (Header + 9~31 byte are all 00)
+	// HandshakeResponse41 or SSLRequest
+	if plen > 35 {
+		allZero := true
+		for _, p := range packet[13:36] {
+			if p != 0x00 {
+				allZero = false
+			}
+		}
+		if allZero {
+			flags := judgeCapacityFlags(packet[5:9])
+			maxPacketSize := int(uint32(packet[10]) | uint32(packet[11])<<8 | uint32(packet[12])<<16 | uint32(packet[13])<<24)
+			cset := judgeCharacterSet(packet[14])
+			if plen <= 36 { // SSL_REQUEST
+				return SSLRequest{mHeader, &Command{SSL_REQUEST}, flags, maxPacketSize, cset}
+			} else { // HANDSHAKE_RESPONSE41
+				// HANDSHAKE_RESPONSE41 is not completely implemented
+				return HandshakeResponse41{mHeader, &Command{HANDSHAKE_RESPONSE41}, flags, maxPacketSize, cset}
+			}
+		}
+	}
+
+	// Second, judge auth plugin response (all string)
+	if ctype > 0x1f && ctype < 0xfe {
+		return AuthSwitchResponse{mHeader, &Command{AUTH_SWITCH_RESPONSE}, string(packet[5:])}
+	}
+
+
+	// Other packet can be identified by 5th byte value
 	switch ctype {
 	case 0x00:
 		if plen > 1 {
@@ -52,34 +91,38 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 			// fmt.Println("[General Res] OK packet")
 			return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
 		}
-	case 0x01:
+	case 0x01: // AUTH_SWITCH_REQUEST
 		if plen > 1 {
-			// fmt.Println("Response or [Connection] Auth More Data")
-			return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
+			return AuthMoreData{mHeader, &Command{AUTH_MORE_DATA}, string(packet[5:])}
 		}
 	case 0x0a:
 		if plen > 1 {
-			// fmt.Printf("[Connection] INITIAL_HANDSHAKE, ver: ")
-			//vend := plen - 1
-			//for i := 5; i < plen; i++ {
-			//	if packet[i] == 0x00 {
-			//		vend = i
-			//		break
-			//	}
-			//}
-			// fmt.Printf("%s\n", packet[5:vend])
-			return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
+			zeroPos := plen
+			for i := 5; i < plen+5; i++ {
+				if packet[i] == 0x00 {
+					zeroPos = i
+					break
+				}
+			}
+			offset := zeroPos + 1
+			cid := int(uint32(packet[offset]) | uint32(packet[offset+1])<<8 | uint32(packet[offset+2])<<16 | uint32(packet[offset+3])<<24)
+			return HandshakeV10{mHeader, &Command{HANDSHAKE_V10}, string(packet[5:zeroPos]),
+		cid, string(packet[offset+4:offset+12]), packet[offset+13:offset+15]}
 		}
 	case 0xfe:
 		if plen == 1 {
-			// fmt.Print("[Connection] Old auth switch response")
-			return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
+			return OldAuthSwitchRequest{mHeader, &Command{OLD_AUTH_SWITCH_REQUEST}}
 		} else if plen == 5 {
 			// fmt.Println("[General Res] EOF packet")
 			return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
 		} else {
 			// str<nul>とint<lenenc>の判断方法が簡単でない、フィールドのマッチを見るしかなさそう。
 			// fmt.Println("[General Res] OK packet or [Connection] Auth switch request")
+			for i, v := range packet[5:] {
+				if v == 0x00 {
+					return AuthSwitchRequest{mHeader, &Command{AUTH_SWITCH_REQUEST}, string(packet[5:6+i]), string(packet[6+i:])}
+				}
+			}
 			return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
 		}
 
@@ -108,19 +151,6 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		}
 	}
 
-	// is clisent request (Header + 9~31 byte are all 00)
-	if plen > 35 {
-		isClientRequest := true
-		for _, p := range packet[13:36] {
-			if p != 0x00 {
-				isClientRequest = false
-			}
-		}
-		if isClientRequest {
-			// fmt.Println("Client Login Request")
-			return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
-		}
-	}
 
 	/*
 	 * command Phase
