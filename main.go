@@ -26,11 +26,22 @@ func DeserializePacket(packet []byte) []IMySQLPacket {
 }
 
 func judgeCapacityFlags(packets []byte) []CapacityFlag {
+	// ??
 	return []CapacityFlag{UNKNOWN_CAPACITY_FLAG}
 }
 
 func judgeCharacterSet(cset byte) CharacterSet {
+	// ??
 	return UNKNOWN_CHARACTER_SET
+}
+
+func judgeStatusFlags(packet []byte) []GeneralPacketStatusFlag {
+	// ??
+	return []GeneralPacketStatusFlag{}
+}
+
+func judgeLengthEncodedInt([]byte) (int, int) {
+	return 1, 1 // ??
 }
 
 func mapPacket(plen int, packet []byte) IMySQLPacket {
@@ -69,33 +80,21 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		return AuthSwitchResponse{mHeader, &Command{AUTH_SWITCH_RESPONSE}, string(packet[5:])}
 	}
 
-
 	// Other packet can be identified by 5th byte value
 	switch ctype {
-	case 0x00:
-		if plen > 1 {
-			// is clisent request (Header + 9~31 byte are all 00)
-			if plen > 35 {
-				allZero := true
-				for _, p := range packet[13:36] {
-					if p != 0x00 {
-						allZero = false
-					}
-				}
-				if allZero {
-					// fmt.Println("[Connection] SSL Request")
-					return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
-				}
-			}
-			// general packet
-			// fmt.Println("[General Res] OK packet")
-			return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
-		}
+	case 0x00: // OK_PACKET
+		affectedRows, alen := judgeLengthEncodedInt(packet[6:])
+		lastInsertedID, llen := judgeLengthEncodedInt(packet[6+alen:])
+		offset := 6 + alen + llen
+		statusFlags := judgeStatusFlags(packet[offset : offset+2])
+		warnings := int(uint32(packet[offset+3]) | uint32(packet[offset+2])<<8)
+		return OKPacket{mHeader, &Command{OK_PACKET}, affectedRows, lastInsertedID,
+			statusFlags, warnings}
 	case 0x01: // AUTH_SWITCH_REQUEST
 		if plen > 1 {
 			return AuthMoreData{mHeader, &Command{AUTH_MORE_DATA}, string(packet[5:])}
 		}
-	case 0x0a:
+	case 0x0a: // HANDSHAKE_V10
 		if plen > 1 {
 			zeroPos := plen
 			for i := 5; i < plen+5; i++ {
@@ -107,28 +106,27 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 			offset := zeroPos + 1
 			cid := int(uint32(packet[offset]) | uint32(packet[offset+1])<<8 | uint32(packet[offset+2])<<16 | uint32(packet[offset+3])<<24)
 			return HandshakeV10{mHeader, &Command{HANDSHAKE_V10}, string(packet[5:zeroPos]),
-		cid, string(packet[offset+4:offset+12]), packet[offset+13:offset+15]}
+				cid, string(packet[offset+4 : offset+12]), packet[offset+13 : offset+15]}
 		}
 	case 0xfe:
-		if plen == 1 {
+		if plen == 1 { // OLD_AUTH_SWITCH_REQUEST
 			return OldAuthSwitchRequest{mHeader, &Command{OLD_AUTH_SWITCH_REQUEST}}
-		} else if plen == 5 {
-			// fmt.Println("[General Res] EOF packet")
-			return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
-		} else {
-			// str<nul>とint<lenenc>の判断方法が簡単でない、フィールドのマッチを見るしかなさそう。
-			// fmt.Println("[General Res] OK packet or [Connection] Auth switch request")
+		} else if plen == 5 { // EOF_PACKET
+			flags := judgeStatusFlags(packet[7:9])
+			warningsCount := int(uint32(packet[6]) | uint32(packet[7])<<8)
+			return EOFPacket{mHeader, &Command{EOF_PACKET}, warningsCount, flags}
+		} else { // AUTH_SWITCH_REQUEST (Anyway, I assume to not be OK_PACKET here
 			for i, v := range packet[5:] {
 				if v == 0x00 {
-					return AuthSwitchRequest{mHeader, &Command{AUTH_SWITCH_REQUEST}, string(packet[5:6+i]), string(packet[6+i:])}
+					return AuthSwitchRequest{mHeader, &Command{AUTH_SWITCH_REQUEST}, string(packet[5 : 6+i]), string(packet[6+i:])}
 				}
 			}
-			return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
 		}
 
-	case 0xff:
-		// fmt.Println("[General Res] Err packet")
-		return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
+	case 0xff: // ERR_PACKET
+		errorCode := int(uint32(packet[6]) | uint32(packet[5])<<8)
+		return ERRPacket{mHeader, &Command{ERR_PACKET}, errorCode,
+			string(packet[7]), string(packet[8:14]), string(packet[14:])}
 	default:
 		// handshake response41
 		if plen > 35 {
@@ -151,7 +149,6 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		}
 	}
 
-
 	/*
 	 * command Phase
 	 */
@@ -164,7 +161,7 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 	case 0x01: // COM_QUIT
 		return ComQuit{mHeader, &Command{COM_QUIT}}
 	case 0x02: // COM_INIT_DB
-		return ComInitDb{mHeader, &Command{COM_INIT_DB},string(packet[5:plen])}
+		return ComInitDb{mHeader, &Command{COM_INIT_DB}, string(packet[5:plen])}
 	case 0x03: // COM_QUERY
 		if sid < 1 { // stirng<EOF>
 			return ComQuery{mHeader, &Command{COM_QUERY}, string(packet[5:])}
@@ -180,9 +177,9 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		}
 		return ComFieldList{mHeader, &Command{COM_FIELD_LIST}, string(packet[5:nullPos]), string(packet[nullPos+1:])}
 	case 0x05: // COM_CREATE_DB
-		return ComCreateDb{mHeader, &Command{COM_CREATE_DB},string(packet[5:plen])}
+		return ComCreateDb{mHeader, &Command{COM_CREATE_DB}, string(packet[5:plen])}
 	case 0x06: // COM_DROP_DB
-		return ComDropDb{mHeader, &Command{COM_DROP_DB},string(packet[5:plen])}
+		return ComDropDb{mHeader, &Command{COM_DROP_DB}, string(packet[5:plen])}
 	case 0x07: // COM_REFRESH
 		subCommand := packet[6]
 		var subCommandType ComRefreshSubCommand
@@ -239,7 +236,7 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		return ComConnect{mHeader, &Command{COM_CONNECT}}
 	case 0x0c: // COM_PROCESS_KILL
 		id := int(uint32(packet[5]) | uint32(packet[6])<<8 | uint32(packet[7])<<16 | uint32(packet[8])<<24)
-		return ComProcessKill{mHeader, &Command{COM_PROCESS_KILL},id}
+		return ComProcessKill{mHeader, &Command{COM_PROCESS_KILL}, id}
 	case 0x0d: // COM_DEBUG
 		return ComDebug{mHeader, &Command{COM_DEBUG}}
 	case 0x0e: // COM_PING
@@ -253,7 +250,7 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		user := ""
 		for i, v := range packet[5:] {
 			if v == 0x00 {
-				user = string(packet[5:i+5])
+				user = string(packet[5 : i+5])
 			}
 		}
 		return ComChangeUser{mHeader, &Command{COM_CHANGE_USER}, user, 0, "",
@@ -265,11 +262,11 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		if flag == 0x01 {
 			return ComBinlogDump{mHeader, &Command{COM_BINLOG_DUMP}, binlogpos, BINLOG_DUMP_NON_BLOCK, sid, string(packet[15:])}
 		}
-		return ComBinlogDump{mHeader, &Command{COM_BINLOG_DUMP}, binlogpos, nil, sid, string(packet[15:])}
+		return ComBinlogDump{mHeader, &Command{COM_BINLOG_DUMP}, binlogpos, COM_BINLOG_DUMP_FLAG_UNKONWN, sid, string(packet[15:])}
 	case 0x13: // COM_TABLE_DUMP
 		databaseLen := int(packet[5])
-		tableLen := int(packet[5 + databaseLen + 1])
-		return ComTableDump{mHeader, &Command{COM_TABLE_DUMP}, databaseLen, string(packet[6:6+databaseLen]), tableLen, string(packet[7+databaseLen:])}
+		tableLen := int(packet[5+databaseLen+1])
+		return ComTableDump{mHeader, &Command{COM_TABLE_DUMP}, databaseLen, string(packet[6 : 6+databaseLen]), tableLen, string(packet[7+databaseLen:])}
 	case 0x14: // COM_CONNECT_OUT
 		return ComConnectOut{mHeader, &Command{COM_CONNECT_OUT}}
 	case 0x15: // COM_REGISTER_SLAVE
@@ -277,19 +274,19 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		slavesHostNameLen := int(packet[9])
 		slavesUserLen := int(packet[9+slavesHostNameLen+1])
 		slavesPasswordLen := int(packet[9+slavesHostNameLen+slavesUserLen+2])
-		offset := slavesHostNameLen+slavesUserLen+slavesPasswordLen+12
+		offset := slavesHostNameLen + slavesUserLen + slavesPasswordLen + 12
 		slavesMySQLPort := int(uint32(packet[offset]) | uint32(packet[offset+1])<<8)
 		replicationRank := int(uint32(packet[offset+2]) | uint32(packet[offset+3])<<8 | uint32(packet[offset+4])<<16 | uint32(offset+5)<<24)
 		masterID := int(uint32(packet[offset+6]) | uint32(packet[offset+7])<<8 | uint32(packet[offset+8])<<16 | uint32(offset+9)<<24)
 		return ComRegisterSlave{mHeader, &Command{COM_REGISTER_SLAVE},
 			sid,
-			slavesHostNameLen, string(packet[10:10+slavesHostNameLen]),
-			slavesUserLen, string(packet[11+slavesHostNameLen:11+slavesHostNameLen+slavesUserLen]),
-			slavesPasswordLen, string(packet[12+slavesHostNameLen+slavesUserLen:12+slavesHostNameLen+slavesUserLen+slavesPasswordLen]),
+			slavesHostNameLen, string(packet[10 : 10+slavesHostNameLen]),
+			slavesUserLen, string(packet[11+slavesHostNameLen : 11+slavesHostNameLen+slavesUserLen]),
+			slavesPasswordLen, string(packet[12+slavesHostNameLen+slavesUserLen : 12+slavesHostNameLen+slavesUserLen+slavesPasswordLen]),
 			slavesMySQLPort, replicationRank, masterID,
 		}
 	case 0x16: // COM_STMT_PREPARE
-		return ComSTMTPrepare{mHeader, &Command{COM_STMT_PREPARE},string(packet[5:plen])}
+		return ComSTMTPrepare{mHeader, &Command{COM_STMT_PREPARE}, string(packet[5:plen])}
 	case 0x17: // COM_STMT_EXECUTE
 		// COM_STMT_EXECUTE is not completely supported...
 		sid := int(uint32(packet[5]) | uint32(packet[6])<<8 | uint32(packet[7])<<16 | uint32(packet[8])<<24)
@@ -314,10 +311,10 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		return ComSTMTSendLongData{mHeader, &Command{COM_STMT_SEND_LONG_DATA}, sid, pid, string(packet[11:])}
 	case 0x19: // COM_STMT_CLOSE
 		id := int(uint32(packet[5]) | uint32(packet[6])<<8 | uint32(packet[7])<<16 | uint32(packet[8])<<24)
-		return ComSTMTClose{mHeader, &Command{COM_STMT_CLOSE},id}
+		return ComSTMTClose{mHeader, &Command{COM_STMT_CLOSE}, id}
 	case 0x1a: // COM_STMT_RESET
 		id := int(uint32(packet[5]) | uint32(packet[6])<<8 | uint32(packet[7])<<16 | uint32(packet[8])<<24)
-		return ComSTMTReset{mHeader, &Command{COM_STMT_RESET},id}
+		return ComSTMTReset{mHeader, &Command{COM_STMT_RESET}, id}
 	case 0x1b: // COM_SET_OPTION
 		operation := packet[5]
 		var operationFlag ComSetOptionOperation
@@ -350,7 +347,7 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		binlogPos := int(uint32(packet[offset]) | uint32(packet[offset+1])<<8 | uint32(packet[offset+2])<<16 | uint32(packet[offset+3])<<24 |
 			uint32(packet[offset+4])<<32 | uint32(packet[offset+5])<<40 | uint32(packet[offset+6])<<48 | uint32(packet[offset+7])<<56)
 		dataSize := 0
-		if plen > 19 + binlogFilenameLen {
+		if plen > 19+binlogFilenameLen {
 			dataSize = int(uint32(packet[offset+8]) | uint32(packet[offset+9])<<8 | uint32(packet[offset+10])<<16 | uint32(packet[offset+11])<<24)
 			return ComBinlogDumpGTID{mHeader, &Command{COM_BINLOG_DUMP_GTID}, flags, sid,
 				binlogFilenameLen, string(packet[15:offset]), binlogPos, dataSize, string(packet[offset+12:])}
@@ -364,5 +361,3 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 
 	return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
 }
-
-

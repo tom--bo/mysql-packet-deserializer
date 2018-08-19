@@ -1,10 +1,12 @@
 package mysqlpacket
 
+import "fmt"
+
 type CommandType string
 
 const (
 	// Connection Phase Packet
-	HANDSHAKE_V10                       = "HANDSHAKE_V10"
+	HANDSHAKE_V10           CommandType = "HANDSHAKE_V10"
 	HANDSHAKE_RESPONSE41                = "HANDSHAKE_RESPONSE41"
 	SSL_REQUEST                         = "SSL_REQUEST"
 	AUTH_SWITCH_REQUEST                 = "AUTH_SWITCH_REQUEST"
@@ -12,56 +14,56 @@ const (
 	AUTH_SWITCH_RESPONSE                = "AUTH_SWITCH_RESPONSE"
 	AUTH_MORE_DATA                      = "AUTH_MORE_DATA"
 	// General Response Packet
-	OK_PACKET                           = "OK_PACKET"
-	ERR_PACKET                          = "ERR_PACKET"
-	EOF_PACKET                          = "EOF_PACKET"
+	OK_PACKET  = "OK_PACKET"
+	ERR_PACKET = "ERR_PACKET"
+	EOF_PACKET = "EOF_PACKET"
 	// Command Phase Packet
-	COM_SLEEP               CommandType = "COM_SLEEP"
-	COM_QUIT                            = "COM_QUIT"
-	COM_INIT_DB                         = "COM_INIT_DB"
-	COM_QUERY                           = "COM_QUERY"
-	COM_FIELD_LIST                      = "COM_FIELD_LIST"
-	COM_CREATE_DB                       = "COM_CREATE_DB"
-	COM_DROP_DB                         = "COM_DROP_DB"
-	COM_REFRESH                         = "COM_REFRESH"
-	COM_SHUTDOWN                        = "COM_SHUTDOWN"
-	COM_STATISTICS                      = "COM_STATISTICS"
-	COM_PROCESS_INFO                    = "COM_PROCESS_INFO"
-	COM_CONNECT                         = "COM_CONNECT"
-	COM_PROCESS_KILL                    = "COM_PROCESS_KILL"
-	COM_DEBUG                           = "COM_DEBUG"
-	COM_PING                            = "COM_PING"
-	COM_TIME                            = "COM_TIME"
-	COM_DELAYED_INSERT                  = "COM_DELAYED_INSERT"
-	COM_CHANGE_USER                     = "COM_CHANGE_USER"
-	COM_BINLOG_DUMP                     = "COM_BINLOG_DUMP"
-	COM_TABLE_DUMP                      = "COM_TABLE_DUMP"
-	COM_CONNECT_OUT                     = "COM_CONNECT_OUT"
-	COM_REGISTER_SLAVE                  = "COM_REGISTER_SLAVE"
-	COM_STMT_PREPARE                    = "COM_STMT_PREPARE"
-	COM_STMT_EXECUTE                    = "COM_STMT_EXECUTE"
-	COM_STMT_SEND_LONG_DATA             = "COM_STMT_SEND_LONG_DATA"
-	COM_STMT_CLOSE                      = "COM_STMT_CLOSE"
-	COM_STMT_RESET                      = "COM_STMT_RESET"
-	COM_SET_OPTION                      = "COM_SET_OPTION"
-	COM_STMT_FETCH                      = "COM_STMT_FETCH"
-	COM_DAEMON                          = "COM_DAEMON"
-	COM_BINLOG_DUMP_GTID                = "COM_BINLOG_DUMP_GTID"
-	COM_RESET_CONNECTION                = "COM_RESET_CONNECTION"
+	COM_SLEEP               = "COM_SLEEP"
+	COM_QUIT                = "COM_QUIT"
+	COM_INIT_DB             = "COM_INIT_DB"
+	COM_QUERY               = "COM_QUERY"
+	COM_FIELD_LIST          = "COM_FIELD_LIST"
+	COM_CREATE_DB           = "COM_CREATE_DB"
+	COM_DROP_DB             = "COM_DROP_DB"
+	COM_REFRESH             = "COM_REFRESH"
+	COM_SHUTDOWN            = "COM_SHUTDOWN"
+	COM_STATISTICS          = "COM_STATISTICS"
+	COM_PROCESS_INFO        = "COM_PROCESS_INFO"
+	COM_CONNECT             = "COM_CONNECT"
+	COM_PROCESS_KILL        = "COM_PROCESS_KILL"
+	COM_DEBUG               = "COM_DEBUG"
+	COM_PING                = "COM_PING"
+	COM_TIME                = "COM_TIME"
+	COM_DELAYED_INSERT      = "COM_DELAYED_INSERT"
+	COM_CHANGE_USER         = "COM_CHANGE_USER"
+	COM_BINLOG_DUMP         = "COM_BINLOG_DUMP"
+	COM_TABLE_DUMP          = "COM_TABLE_DUMP"
+	COM_CONNECT_OUT         = "COM_CONNECT_OUT"
+	COM_REGISTER_SLAVE      = "COM_REGISTER_SLAVE"
+	COM_STMT_PREPARE        = "COM_STMT_PREPARE"
+	COM_STMT_EXECUTE        = "COM_STMT_EXECUTE"
+	COM_STMT_SEND_LONG_DATA = "COM_STMT_SEND_LONG_DATA"
+	COM_STMT_CLOSE          = "COM_STMT_CLOSE"
+	COM_STMT_RESET          = "COM_STMT_RESET"
+	COM_SET_OPTION          = "COM_SET_OPTION"
+	COM_STMT_FETCH          = "COM_STMT_FETCH"
+	COM_DAEMON              = "COM_DAEMON"
+	COM_BINLOG_DUMP_GTID    = "COM_BINLOG_DUMP_GTID"
+	COM_RESET_CONNECTION    = "COM_RESET_CONNECTION"
 	// Unknown or Not Supported Packet
-	UNKNOWN_PACKET                      = "UNKNOWN_PACKET"
+	UNKNOWN_PACKET = "UNKNOWN_PACKET"
 )
 
 type CharacterSet string
 
 const (
-	UNKNOWN_CHARACTER_SET CharacterSet   = "UNKNOWN_CHARACTER_SET"
+	UNKNOWN_CHARACTER_SET CharacterSet = "UNKNOWN_CHARACTER_SET"
 )
 
 type CapacityFlag string
 
 const (
-	UNKNOWN_CAPACITY_FLAG CapacityFlag   = "UNKNOWN_CAPACITY_FLAG"
+	UNKNOWN_CAPACITY_FLAG CapacityFlag = "UNKNOWN_CAPACITY_FLAG"
 )
 
 /*
@@ -93,62 +95,81 @@ const (
 		string([]byte{0x01, 0x00, 0x00, 0x00}): "CLIENT_DEPRECATE_EOF"}
 */
 
+type GeneralPacketStatusFlag string
+
+const (
+	SERVER_STATUS_IN_TRANS             GeneralPacketStatusFlag = "SERVER_STATUS_IN_TRANS"
+	SERVER_STATUS_AUTOCOMMIT                                   = "SERVER_STATUS_AUTOCOMMIT"
+	SERVER_MORE_RESULTS_EXISTS                                 = "SERVER_MORE_RESULTS_EXISTS"
+	SERVER_STATUS_NO_GOOD_INDEX_USED                           = "SERVER_STATUS_NO_GOOD_INDEX_USED"
+	SERVER_STATUS_NO_INDEX_USED                                = "SERVER_STATUS_NO_INDEX_USED"
+	SERVER_STATUS_CURSOR_EXISTS                                = "SERVER_STATUS_CURSOR_EXISTS"
+	SERVER_STATUS_LAST_ROW_SENT                                = "SERVER_STATUS_LAST_ROW_SENT"
+	SERVER_STATUS_DB_DROPPED                                   = "SERVER_STATUS_DB_DROPPED"
+	SERVER_STATUS_NO_BACKSLASH_ESCAPES                         = "SERVER_STATUS_NO_BACKSLASH_ESCAPES"
+	SERVER_STATUS_METADATA_CHANGE                              = "SERVER_STATUS_METADATA_CHANGE"
+	SERVER_QUERY_WAS_SLOW                                      = "SERVER_QUERY_WAS_SLOW"
+	SERVER_PS_OUT_PARAMS                                       = "SERVER_PS_OUT_PARAMS"
+	SERVER_STATUS_IN_TRANS_READONLY                            = "SERVER_STATUS_IN_TRANS_READONLY"
+	SERVER_SESSION_STATE_CHANGED                               = "SERVER_SESSION_STATE_CHANGED"
+)
+
 type ComRefreshSubCommand string
 
 const (
-	REFRESH_GRANT ComRefreshSubCommand = "REFRESH_GRANT"
-	REFRESH_LOG = "REFRESH_LOG"
-	REFRESH_TABLES = "REFRESH_TABLES"
-	REFRESH_HOSTS = "REFRESH_HOSTS"
-	REFRESH_STATUS = "REFRESH_STATUS"
-	REFRESH_THREADS = "REFRESH_THREADS"
-	REFRESH_SLAVE = "REFRESH_SLAVE"
-	REFRESH_MASTER = "REFRESH_MASTER"
-	COM_REFRESH_SUBCOMMAND_UNKNOWN = "COM_REFRESH_SUBCOMMAND_UNKNOWN"
+	REFRESH_GRANT                  ComRefreshSubCommand = "REFRESH_GRANT"
+	REFRESH_LOG                                         = "REFRESH_LOG"
+	REFRESH_TABLES                                      = "REFRESH_TABLES"
+	REFRESH_HOSTS                                       = "REFRESH_HOSTS"
+	REFRESH_STATUS                                      = "REFRESH_STATUS"
+	REFRESH_THREADS                                     = "REFRESH_THREADS"
+	REFRESH_SLAVE                                       = "REFRESH_SLAVE"
+	REFRESH_MASTER                                      = "REFRESH_MASTER"
+	COM_REFRESH_SUBCOMMAND_UNKNOWN                      = "COM_REFRESH_SUBCOMMAND_UNKNOWN"
 )
 
 type ComShutdownSubCommand string
 
 const (
-	SHUTDOWN_DEFAULT ComShutdownSubCommand = "SHUTDOWN_DEFAULT"
-	SHUTDOWN_WAIT_CONNECTIONS = "SHUTDOWN_WAIT_CONNECTIONS"
-	SHUTDOWN_WAIT_TRANSACTIONS = "SHUTDOWN_WAIT_TRANSACTIONS"
-	SHUTDOWN_WAIT_UPDATES = "SHUTDOWN_WAIT_UPDATES"
-	SHUTDOWN_WAIT_ALL_BUFFERS = "SHUTDOWN_WAIT_ALL_BUFFERS"
-	SHUTDOWN_WAIT_CRITICAL_BUFFERS = "SHUTDOWN_WAIT_CRITICAL_BUFFERS"
-	KILL_QUERY = "KILL_QUERY"
-	KILL_CONNECTION = "KILL_CONNECTION"
-	COM_SHUTDOWN_SUBCOMMAND_UNKNOWN = "COM_SHUTDOWN_SUBCOMMAND_UNKNOWN"
+	SHUTDOWN_DEFAULT                ComShutdownSubCommand = "SHUTDOWN_DEFAULT"
+	SHUTDOWN_WAIT_CONNECTIONS                             = "SHUTDOWN_WAIT_CONNECTIONS"
+	SHUTDOWN_WAIT_TRANSACTIONS                            = "SHUTDOWN_WAIT_TRANSACTIONS"
+	SHUTDOWN_WAIT_UPDATES                                 = "SHUTDOWN_WAIT_UPDATES"
+	SHUTDOWN_WAIT_ALL_BUFFERS                             = "SHUTDOWN_WAIT_ALL_BUFFERS"
+	SHUTDOWN_WAIT_CRITICAL_BUFFERS                        = "SHUTDOWN_WAIT_CRITICAL_BUFFERS"
+	KILL_QUERY                                            = "KILL_QUERY"
+	KILL_CONNECTION                                       = "KILL_CONNECTION"
+	COM_SHUTDOWN_SUBCOMMAND_UNKNOWN                       = "COM_SHUTDOWN_SUBCOMMAND_UNKNOWN"
 )
 
 type ComSetOptionOperation string
 
 const (
-	MYSQL_OPTION_MULTI_STATEMENTS_ON ComSetOptionOperation = "MYSQL_OPTION_MULTI_STATEMENTS_ON"
-	MYSQL_OPTION_MULTI_STATEMENTS_OFF = "MYSQL_OPTION_MULTI_STATEMENTS_OFF"
-	COM_SET_OPTION_OPERATION_UNKNOWN = "COM_SET_OPTION_OPERATION_UNKNOWN"
+	MYSQL_OPTION_MULTI_STATEMENTS_ON  ComSetOptionOperation = "MYSQL_OPTION_MULTI_STATEMENTS_ON"
+	MYSQL_OPTION_MULTI_STATEMENTS_OFF                       = "MYSQL_OPTION_MULTI_STATEMENTS_OFF"
+	COM_SET_OPTION_OPERATION_UNKNOWN                        = "COM_SET_OPTION_OPERATION_UNKNOWN"
 )
 
 type ComBinlogDumpFlag string
+
 // This type is used as ComBinlogDumpGTIDFlags also
 
 const (
-	BINLOG_DUMP_NON_BLOCK ComBinlogDumpFlag = "BINLOG_DUMP_NON_BLOCK"
-	BINLOG_THROUGH_POSITION = "BINLOG_THROUGH_POSITION"
-	BINLOG_THROUGH_GTID = "BINLOG_THROUGH_GTID"
-	COM_BINLOG_DUMP_FLAG_UNKONWN = "COM_BINLOG_DUMP_FLAG_UNKONWN"
+	BINLOG_DUMP_NON_BLOCK        ComBinlogDumpFlag = "BINLOG_DUMP_NON_BLOCK"
+	BINLOG_THROUGH_POSITION                        = "BINLOG_THROUGH_POSITION"
+	BINLOG_THROUGH_GTID                            = "BINLOG_THROUGH_GTID"
+	COM_BINLOG_DUMP_FLAG_UNKONWN                   = "COM_BINLOG_DUMP_FLAG_UNKONWN"
 )
 
 type ComSTMTExecuteFlags string
 
 const (
-	CURSOR_TYPE_NO_CURSOR ComSTMTExecuteFlags = "CURSOR_TYPE_NO_CURSOR"
-	CURSOR_TYPE_READ_ONLY = "CURSOR_TYPE_READ_ONLY"
-	CURSOR_TYPE_FOR_UPDATE = "CURSOR_TYPE_FOR_UPDATE"
-	CURSOR_TYPE_SCROLLABLE = "CURSOR_TYPE_SCROLLABLE"
-	COM_STMT_EXECUTE_FLAG_UNKONWN = "COM_STMT_EXECUTE_FLAG_UNKONWN"
+	CURSOR_TYPE_NO_CURSOR         ComSTMTExecuteFlags = "CURSOR_TYPE_NO_CURSOR"
+	CURSOR_TYPE_READ_ONLY                             = "CURSOR_TYPE_READ_ONLY"
+	CURSOR_TYPE_FOR_UPDATE                            = "CURSOR_TYPE_FOR_UPDATE"
+	CURSOR_TYPE_SCROLLABLE                            = "CURSOR_TYPE_SCROLLABLE"
+	COM_STMT_EXECUTE_FLAG_UNKONWN                     = "COM_STMT_EXECUTE_FLAG_UNKONWN"
 )
-
 
 /*
  * MySQL Common Header
@@ -156,6 +177,7 @@ const (
 
 type IMySQLPacket interface {
 	GetCommandType() CommandType
+	Print()
 }
 
 type Command struct {
@@ -164,6 +186,10 @@ type Command struct {
 
 func (c *Command) GetCommandType() CommandType {
 	return c.cmdType
+}
+
+func (c *Command) Print() {
+	fmt.Println(c.cmdType)
 }
 
 type MySQLHeader struct {
@@ -178,9 +204,9 @@ type MySQLHeader struct {
 type HandshakeV10 struct {
 	Header MySQLHeader
 	*Command
-	ServerVersion string
-	ConnectionID int
-	AuthPluginDataPart1 string
+	ServerVersion              string
+	ConnectionID               int
+	AuthPluginDataPart1        string
 	CapabilityFlagsLower2Bytes []byte
 	// Not implemented completely now ...
 }
@@ -188,23 +214,23 @@ type HandshakeV10 struct {
 type HandshakeResponse41 struct {
 	Header MySQLHeader
 	*Command
-	CapacityFlag []CapacityFlag
+	CapacityFlag  []CapacityFlag
 	MaxPacketSize int
-	CharacterSet CharacterSet
+	CharacterSet  CharacterSet
 }
 
 type SSLRequest struct {
 	Header MySQLHeader
 	*Command
-	CapacityFlag []CapacityFlag
+	CapacityFlag  []CapacityFlag
 	MaxPacketSize int
-	CharacterSet CharacterSet
+	CharacterSet  CharacterSet
 }
 
 type AuthSwitchRequest struct {
 	Header MySQLHeader
 	*Command
-	PluginName string
+	PluginName     string
 	AuthPluginData string
 }
 
@@ -232,18 +258,28 @@ type AuthMoreData struct {
 type OKPacket struct {
 	Header MySQLHeader
 	*Command
+	AffectedRows  int
+	LastInsertID  int
+	StatusFlags   []GeneralPacketStatusFlag
+	WarningsCount int
+	// OKPacket is not completely implemented
 }
 
 type ERRPacket struct {
 	Header MySQLHeader
 	*Command
+	ErrorCode      int
+	SQLStateMarker string
+	SQLState       string
+	ErrorMessage   string
 }
 
 type EOFPacket struct {
 	Header MySQLHeader
 	*Command
+	WarningsCount int
+	StatusFlags   []GeneralPacketStatusFlag
 }
-
 
 /*
  * Command Phase
@@ -274,7 +310,7 @@ type ComQuery struct {
 type ComFieldList struct {
 	Header MySQLHeader
 	*Command
-	Table string
+	Table         string
 	FieldWildcard string
 }
 
@@ -346,32 +382,32 @@ type ComDelayedInsert struct {
 type ComChangeUser struct {
 	Header MySQLHeader
 	*Command
-	User string
-	AuthResponseLen int
-	AuthResponse string
-	SchemaName string
-	CharacterSet CharacterSet
-	AuthPluginName string
+	User                 string
+	AuthResponseLen      int
+	AuthResponse         string
+	SchemaName           string
+	CharacterSet         CharacterSet
+	AuthPluginName       string
 	LengthOfAllKeyValues int
-	Data map[string]string // Key Value pair
+	Data                 map[string]string // Key Value pair
 }
 
 type ComBinlogDump struct {
 	Header MySQLHeader
 	*Command
 	BinlogPosition int
-	Flag ComBinlogDumpFlag
-	ServerID int
+	Flag           ComBinlogDumpFlag
+	ServerID       int
 	BinlogFileName string
 }
 
 type ComTableDump struct {
 	Header MySQLHeader
 	*Command
-	DatabaseLen int
+	DatabaseLen  int
 	DatabaseName string
-	TableLen int
-	TableName string
+	TableLen     int
+	TableName    string
 }
 
 type ComConnectOut struct {
@@ -382,16 +418,16 @@ type ComConnectOut struct {
 type ComRegisterSlave struct {
 	Header MySQLHeader
 	*Command
-	ServerID int
+	ServerID             int
 	SlavesHostNameLength int
-	SlavesHostName string
-	SlavesUserLength int
-	SlavesUser string
+	SlavesHostName       string
+	SlavesUserLength     int
+	SlavesUser           string
 	SlavesPasswordLength int
-	SlavesPassword string
-	SlavesMySQLPort int
-	ReplicationRank int
-	MasterID int
+	SlavesPassword       string
+	SlavesMySQLPort      int
+	ReplicationRank      int
+	MasterID             int
 }
 
 type ComSTMTPrepare struct {
@@ -403,12 +439,12 @@ type ComSTMTPrepare struct {
 type ComSTMTExecute struct {
 	Header MySQLHeader
 	*Command
-	STMTID int
-	Flags ComSTMTExecuteFlags
-	IterationCount int
-	NULLBitmap string
-	NewParamsBoundFlag int
-	TypeOfEachParameter string
+	STMTID               int
+	Flags                ComSTMTExecuteFlags
+	IterationCount       int
+	NULLBitmap           string
+	NewParamsBoundFlag   int
+	TypeOfEachParameter  string
 	ValueOfEachParameter string
 }
 
@@ -416,8 +452,8 @@ type ComSTMTSendLongData struct {
 	Header MySQLHeader
 	*Command
 	StatementID int
-	ParamID int
-	Data string
+	ParamID     int
+	Data        string
 }
 
 type ComSTMTClose struct {
@@ -441,7 +477,7 @@ type ComSetOption struct {
 type ComSTMTFetch struct {
 	Header MySQLHeader
 	*Command
-	STMTID int
+	STMTID  int
 	NumRows int
 }
 
@@ -453,13 +489,13 @@ type ComDaemon struct {
 type ComBinlogDumpGTID struct {
 	Header MySQLHeader
 	*Command
-	Flags ComBinlogDumpFlag
-	ServerID int
+	Flags             ComBinlogDumpFlag
+	ServerID          int
 	BinlogFilenameLen int
-	BinlogFilename string
-	BinlogPosition int
-	DataSize int
-	Data string
+	BinlogFilename    string
+	BinlogPosition    int
+	DataSize          int
+	Data              string
 }
 
 type ComResetConnection struct {
