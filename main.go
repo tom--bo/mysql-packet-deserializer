@@ -1,5 +1,7 @@
 package mysqlpacket
 
+import "fmt"
+
 /*
  * Desirialize method
  */
@@ -11,6 +13,9 @@ func DeserializePacket(packet []byte) []IMySQLPacket {
 
 	for plen-nowPos > 0 {
 		pktLen := int(uint32(packet[nowPos]) | uint32(packet[nowPos+1])<<8 | uint32(packet[nowPos+2])<<16)
+		if pktLen > 65536 { // ??
+			break
+		}
 
 		mysqlPackets = append(mysqlPackets, mapPacket(pktLen, packet[nowPos:nowPos+(4+pktLen)]))
 		nowPos += 4 + pktLen
@@ -42,6 +47,12 @@ func judgeLengthEncodedInt([]byte) (int, int) {
 }
 
 func mapPacket(plen int, packet []byte) IMySQLPacket {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println("[DEBUG] Error!!!")
+		}
+	}()
+
 	sid := int(packet[3])
 	ctype := packet[4]
 	mHeader := MySQLHeader{uint32(plen), uint8(sid)}
@@ -158,15 +169,21 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 	case 0x01: // COM_QUIT
 		return ComQuit{mHeader, &Command{COM_QUIT}}
 	case 0x02: // COM_INIT_DB
-		return ComInitDb{mHeader, &Command{COM_INIT_DB}, string(packet[5:plen])}
+		if plen < 1 {
+			return ComInitDb{mHeader, &Command{COM_INIT_DB}, ""}
+		}
+		return ComInitDb{mHeader, &Command{COM_INIT_DB}, string(packet[5:5+plen-1])}
 	case 0x03: // COM_QUERY
 		if sid < 1 { // stirng<EOF>
 			return ComQuery{mHeader, &Command{COM_QUERY}, string(packet[5:])}
 		} else {
-			// response
+			// com_query_response
 		}
 	case 0x04: // COM_FIELD_LIST
 		// return 1 byte content COM_FIELD_LIST packet struct when plen == 1 ??
+		if plen == 1 {
+			return ComFieldList{mHeader, &Command{COM_FIELD_LIST}, "", ""}
+		}
 		nullPos := -1
 		for i, v := range packet[5:] {
 			if v == 0x00 {
