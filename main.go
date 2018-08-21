@@ -2,6 +2,10 @@ package mysqlpacket
 
 import "fmt"
 
+var (
+	DEBUG = false
+)
+
 /*
  * Desirialize method
  */
@@ -14,12 +18,16 @@ func DeserializePacket(packet []byte) []IMySQLPacket {
 	for plen-nowPos > 0 {
 		pktLen := int(uint32(packet[nowPos]) | uint32(packet[nowPos+1])<<8 | uint32(packet[nowPos+2])<<16)
 		if pktLen > 65536 { // ??
-			break
+			return []IMySQLPacket{UnknownPacket{MySQLHeader{0, 0}, &Command{UNKNOWN_PACKET}}}
 		}
 
-		mysqlPackets = append(mysqlPackets, mapPacket(pktLen, packet[nowPos:nowPos+(4+pktLen)]))
-		nowPos += 4 + pktLen
+		p := mapPacket(pktLen, packet[nowPos:nowPos+(4+pktLen)])
+		if p == nil {
+			p = UnknownPacket{MySQLHeader{0, 0}, &Command{UNKNOWN_PACKET}}
+		}
 
+		mysqlPackets = append(mysqlPackets, p)
+		nowPos += 4 + pktLen
 		// stop processing multiple MySQL packet
 		break
 	}
@@ -38,8 +46,51 @@ func judgeCharacterSet(cset byte) CharacterSet {
 }
 
 func judgeStatusFlags(packet []byte) []GeneralPacketStatusFlag {
-	// ??
-	return []GeneralPacketStatusFlag{}
+	ret := []GeneralPacketStatusFlag{}
+	if packet[1] & 0x01 == 0x01 {
+		ret = append(ret, SERVER_STATUS_IN_TRANS)
+	}
+	if packet[1] & 0x02 == 0x02 {
+		ret = append(ret, SERVER_STATUS_AUTOCOMMIT)
+	}
+	if packet[1] & 0x08 == 0x08 {
+		ret = append(ret, SERVER_MORE_RESULTS_EXISTS)
+	}
+	if packet[1] & 0x10 == 0x10 {
+		ret = append(ret, SERVER_STATUS_NO_GOOD_INDEX_USED)
+	}
+	if packet[1] & 0x20 == 0x20 {
+		ret = append(ret, SERVER_STATUS_NO_INDEX_USED)
+	}
+	if packet[1] & 0x40 == 0x40 {
+		ret = append(ret, SERVER_STATUS_CURSOR_EXISTS)
+	}
+	if packet[1] & 0x80 == 0x80 {
+		ret = append(ret, SERVER_STATUS_LAST_ROW_SENT)
+	}
+	if packet[0] & 0x01 == 0x01 {
+		ret = append(ret, SERVER_STATUS_DB_DROPPED)
+	}
+	if packet[0] & 0x02 == 0x02 {
+		ret = append(ret, SERVER_STATUS_NO_BACKSLASH_ESCAPES)
+	}
+	if packet[0] & 0x04 == 0x04 {
+		ret = append(ret, SERVER_STATUS_METADATA_CHANGE)
+	}
+	if packet[0] & 0x08 == 0x08 {
+		ret = append(ret, SERVER_QUERY_WAS_SLOW)
+	}
+	if packet[0] & 0x10 == 0x10 {
+		ret = append(ret, SERVER_PS_OUT_PARAMS)
+	}
+	if packet[0] & 0x20 == 0x20 {
+		ret = append(ret, SERVER_STATUS_IN_TRANS_READONLY)
+	}
+	if packet[0] & 0x40 == 0x40 {
+		ret = append(ret, SERVER_SESSION_STATE_CHANGED)
+	}
+
+	return ret
 }
 
 func judgeLengthEncodedInt([]byte) (int, int) {
@@ -48,7 +99,7 @@ func judgeLengthEncodedInt([]byte) (int, int) {
 
 func mapPacket(plen int, packet []byte) IMySQLPacket {
 	defer func() {
-		if err := recover(); err != nil {
+		if err := recover(); err != nil && DEBUG {
 			fmt.Println("[DEBUG] Error!!!")
 		}
 	}()

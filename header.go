@@ -105,6 +105,7 @@ const (
 	SERVER_STATUS_NO_INDEX_USED                                = "SERVER_STATUS_NO_INDEX_USED"
 	SERVER_STATUS_CURSOR_EXISTS                                = "SERVER_STATUS_CURSOR_EXISTS"
 	SERVER_STATUS_LAST_ROW_SENT                                = "SERVER_STATUS_LAST_ROW_SENT"
+	// byte boundary
 	SERVER_STATUS_DB_DROPPED                                   = "SERVER_STATUS_DB_DROPPED"
 	SERVER_STATUS_NO_BACKSLASH_ESCAPES                         = "SERVER_STATUS_NO_BACKSLASH_ESCAPES"
 	SERVER_STATUS_METADATA_CHANGE                              = "SERVER_STATUS_METADATA_CHANGE"
