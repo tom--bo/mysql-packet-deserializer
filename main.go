@@ -36,8 +36,53 @@ func DeserializePacket(packet []byte) []IMySQLPacket {
 }
 
 func judgeCapacityFlags(packets []byte) []CapacityFlag {
-	// ??
-	return []CapacityFlag{UNKNOWN_CAPACITY_FLAG}
+	ret := []CapacityFlag{}
+
+	firstByte := map[int]CapacityFlag {
+		0x0001: CLIENT_LONG_PASSWORD,
+		0x0002: CLIENT_FOUND_ROWS,
+		0x0004: CLIENT_LONG_FLAG,
+		0x0008: CLIENT_CONNECT_WITH_DB,
+		0x0010: CLIENT_NO_SCHEMA,
+		0x0020: CLIENT_COMPRESS,
+		0x0040: CLIENT_ODBC,
+		0x0080: CLIENT_LOCAL_FILES,
+		0x0100: CLIENT_IGNORE_SPACE,
+		0x0200: CLIENT_41,
+		0x0400: CLIENT_INTERACTIVE,
+		0x0800: CLIENT_SSL,
+		0x1000: CLIENT_IGNORE_SIGPIPE,
+		0x2000: CLIENT_TRANSACTIONS,
+		0x4000: CLIENT_RESERVED,
+		0x8000: CLIENT_SECURE_CONNECTION,
+	}
+	secondByte := map[int]CapacityFlag{
+		0x0001: CLIENT_MULTI_STATEMENTS,
+		0x0002: CLIENT_MULTI_RESULTS,
+		0x0004: CLIENT_PS_MULTI_RESULTS,
+		0x0008: CLIENT_PLUGIN_AUTH,
+		0x0010: CLIENT_CONNECT_ATTRS,
+		0x0020: CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA,
+		0x0040: CLIENT_CAN_HANDLE_EXPIRED_PASSWORD,
+		0x0080: CLIENT_SESSION_TRACK,
+		0x0100: CLIENT_DEPRECATE_EOF,
+	}
+
+	first2 := int(packets[0] << 8 | packets[1])
+	second2 := int(packets[2] << 8 | packets[3])
+
+	for k, v := range firstByte {
+		if first2 & k == k {
+			ret = append(ret, v)
+		}
+	}
+	for k, v := range secondByte {
+		if second2 & k == k {
+			ret = append(ret, v)
+		}
+	}
+
+	return ret
 }
 
 func judgeCharacterSet(cset byte) CharacterSet {
@@ -47,47 +92,30 @@ func judgeCharacterSet(cset byte) CharacterSet {
 
 func judgeStatusFlags(packet []byte) []GeneralPacketStatusFlag {
 	ret := []GeneralPacketStatusFlag{}
-	if packet[1] & 0x01 == 0x01 {
-		ret = append(ret, SERVER_STATUS_IN_TRANS)
+
+	generalStatus := map[int]GeneralPacketStatusFlag {
+		0x0001: SERVER_STATUS_IN_TRANS,
+		0x0002: SERVER_STATUS_AUTOCOMMIT,
+		0x0008: SERVER_MORE_RESULTS_EXISTS,
+		0x0010: SERVER_STATUS_NO_GOOD_INDEX_USED,
+		0x0020: SERVER_STATUS_NO_INDEX_USED,
+		0x0040: SERVER_STATUS_CURSOR_EXISTS,
+		0x0080: SERVER_STATUS_LAST_ROW_SENT,
+		0x0100: SERVER_STATUS_DB_DROPPED,
+		0x0200: SERVER_STATUS_NO_BACKSLASH_ESCAPES,
+		0x0400: SERVER_STATUS_METADATA_CHANGE,
+		0x0800: SERVER_QUERY_WAS_SLOW,
+		0x1000: SERVER_PS_OUT_PARAMS,
+		0x2000: SERVER_STATUS_IN_TRANS_READONLY,
+		0x4000: SERVER_SESSION_STATE_CHANGED,
 	}
-	if packet[1] & 0x02 == 0x02 {
-		ret = append(ret, SERVER_STATUS_AUTOCOMMIT)
-	}
-	if packet[1] & 0x08 == 0x08 {
-		ret = append(ret, SERVER_MORE_RESULTS_EXISTS)
-	}
-	if packet[1] & 0x10 == 0x10 {
-		ret = append(ret, SERVER_STATUS_NO_GOOD_INDEX_USED)
-	}
-	if packet[1] & 0x20 == 0x20 {
-		ret = append(ret, SERVER_STATUS_NO_INDEX_USED)
-	}
-	if packet[1] & 0x40 == 0x40 {
-		ret = append(ret, SERVER_STATUS_CURSOR_EXISTS)
-	}
-	if packet[1] & 0x80 == 0x80 {
-		ret = append(ret, SERVER_STATUS_LAST_ROW_SENT)
-	}
-	if packet[0] & 0x01 == 0x01 {
-		ret = append(ret, SERVER_STATUS_DB_DROPPED)
-	}
-	if packet[0] & 0x02 == 0x02 {
-		ret = append(ret, SERVER_STATUS_NO_BACKSLASH_ESCAPES)
-	}
-	if packet[0] & 0x04 == 0x04 {
-		ret = append(ret, SERVER_STATUS_METADATA_CHANGE)
-	}
-	if packet[0] & 0x08 == 0x08 {
-		ret = append(ret, SERVER_QUERY_WAS_SLOW)
-	}
-	if packet[0] & 0x10 == 0x10 {
-		ret = append(ret, SERVER_PS_OUT_PARAMS)
-	}
-	if packet[0] & 0x20 == 0x20 {
-		ret = append(ret, SERVER_STATUS_IN_TRANS_READONLY)
-	}
-	if packet[0] & 0x40 == 0x40 {
-		ret = append(ret, SERVER_SESSION_STATE_CHANGED)
+
+	byte2 := int(packet[0] << 8 | packet[1])
+
+	for k, v := range generalStatus {
+		if byte2 & k == k {
+			ret = append(ret, v)
+		}
 	}
 
 	return ret
