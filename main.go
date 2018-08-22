@@ -34,7 +34,7 @@ func DeserializePacket(packet []byte) []IMySQLPacket {
 func judgeCapacityFlags(packets []byte) []CapacityFlag {
 	ret := []CapacityFlag{}
 
-	firstByte := map[int]CapacityFlag {
+	firstByte := map[int]CapacityFlag{
 		0x0001: CLIENT_LONG_PASSWORD,
 		0x0002: CLIENT_FOUND_ROWS,
 		0x0004: CLIENT_LONG_FLAG,
@@ -64,16 +64,16 @@ func judgeCapacityFlags(packets []byte) []CapacityFlag {
 		0x0100: CLIENT_DEPRECATE_EOF,
 	}
 
-	first2 := int(packets[0] << 8 | packets[1])
-	second2 := int(packets[2] << 8 | packets[3])
+	first2 := int(packets[0]<<8 | packets[1])
+	second2 := int(packets[2]<<8 | packets[3])
 
 	for k, v := range firstByte {
-		if first2 & k == k {
+		if first2&k == k {
 			ret = append(ret, v)
 		}
 	}
 	for k, v := range secondByte {
-		if second2 & k == k {
+		if second2&k == k {
 			ret = append(ret, v)
 		}
 	}
@@ -89,7 +89,7 @@ func judgeCharacterSet(cset byte) CharacterSet {
 func judgeStatusFlags(packet []byte) []GeneralPacketStatusFlag {
 	ret := []GeneralPacketStatusFlag{}
 
-	generalStatus := map[int]GeneralPacketStatusFlag {
+	generalStatus := map[int]GeneralPacketStatusFlag{
 		0x0001: SERVER_STATUS_IN_TRANS,
 		0x0002: SERVER_STATUS_AUTOCOMMIT,
 		0x0008: SERVER_MORE_RESULTS_EXISTS,
@@ -106,10 +106,10 @@ func judgeStatusFlags(packet []byte) []GeneralPacketStatusFlag {
 		0x4000: SERVER_SESSION_STATE_CHANGED,
 	}
 
-	byte2 := int(packet[0] << 8 | packet[1])
+	byte2 := int(packet[0]<<8 | packet[1])
 
 	for k, v := range generalStatus {
-		if byte2 & k == k {
+		if byte2&k == k {
 			ret = append(ret, v)
 		}
 	}
@@ -126,14 +126,14 @@ func decodeLengthEncodedInt(packet []byte) (int, int) {
 	}
 	switch packet[0] {
 	case 0xfc:
-		return 2, int(uint32(packet[1]) << 8 | uint32(packet[2]))
+		return 2, int(uint32(packet[1])<<8 | uint32(packet[2]))
 	case 0xfd:
-		return 3, int(uint32(packet[1]) << 16 | uint32(packet[2]) << 8 | uint32(packet[3]))
+		return 3, int(uint32(packet[1])<<16 | uint32(packet[2])<<8 | uint32(packet[3]))
 	case 0xfe:
 		return 8, int(
-			uint64(packet[1]) << 56 | uint64(packet[2]) << 48 | uint64(packet[3] << 40) |
-			uint64(packet[4]) << 32 | uint64(packet[5]) << 24 | uint64(packet[6]) << 16 |
-			uint64(packet[7]) <<  8 | uint64(packet[8]))
+			uint64(packet[1])<<56 | uint64(packet[2])<<48 | uint64(packet[3]<<40) |
+				uint64(packet[4])<<32 | uint64(packet[5])<<24 | uint64(packet[6])<<16 |
+				uint64(packet[7])<<8 | uint64(packet[8]))
 	}
 	return 0, 0
 }
@@ -153,18 +153,18 @@ func decodeLengthEncodedString(packet []byte) (int, string) {
 	switch packet[0] {
 	case 0xfc:
 		ilen = 2
-		slen = int(uint32(packet[1]) << 8 | uint32(packet[2]))
+		slen = int(uint32(packet[1])<<8 | uint32(packet[2]))
 	case 0xfd:
 		ilen = 3
-		slen = int(uint32(packet[1]) << 16 | uint32(packet[2]) << 8 | uint32(packet[3]))
+		slen = int(uint32(packet[1])<<16 | uint32(packet[2])<<8 | uint32(packet[3]))
 	case 0xfe:
 		ilen = 8
 		slen = int(
-			uint64(packet[1]) << 56 | uint64(packet[2]) << 48 | uint64(packet[3] << 40) |
-			uint64(packet[4]) << 32 | uint64(packet[5]) << 24 | uint64(packet[6]) << 16 |
-			uint64(packet[7]) <<  8 | uint64(packet[8]))
+			uint64(packet[1])<<56 | uint64(packet[2])<<48 | uint64(packet[3]<<40) |
+				uint64(packet[4])<<32 | uint64(packet[5])<<24 | uint64(packet[6])<<16 |
+				uint64(packet[7])<<8 | uint64(packet[8]))
 	}
-	return ilen + slen, string(packet[ilen:ilen+slen])
+	return ilen + slen, string(packet[ilen : ilen+slen])
 }
 
 func mapPacket(plen int, packet []byte) IMySQLPacket {
@@ -293,7 +293,7 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		if plen < 1 {
 			return ComInitDb{mHeader, &Command{COM_INIT_DB}, ""}
 		}
-		return ComInitDb{mHeader, &Command{COM_INIT_DB}, string(packet[5:5+plen-1])}
+		return ComInitDb{mHeader, &Command{COM_INIT_DB}, string(packet[5 : 5+plen-1])}
 	case 0x03: // COM_QUERY
 		if sid < 1 { // stirng<EOF>
 			return ComQuery{mHeader, &Command{COM_QUERY}, string(packet[5:])}
