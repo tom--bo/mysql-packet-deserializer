@@ -6,10 +6,6 @@ var (
 	DEBUG = false
 )
 
-/*
- * Desirialize method
- */
-
 func DeserializePacket(packet []byte) []IMySQLPacket {
 	plen := len(packet)
 	nowPos := 0
@@ -121,8 +117,54 @@ func judgeStatusFlags(packet []byte) []GeneralPacketStatusFlag {
 	return ret
 }
 
-func judgeLengthEncodedInt([]byte) (int, int) {
-	return 0, 0 // ??
+func decodeLengthEncodedInt(packet []byte) (int, int) {
+	if packet[0] == 0x00 {
+		return 0, 0
+	}
+	if packet[0] < 0xfc {
+		return 1, int(uint8(packet[0]))
+	}
+	switch packet[0] {
+	case 0xfc:
+		return 2, int(uint32(packet[1]) << 8 | uint32(packet[2]))
+	case 0xfd:
+		return 3, int(uint32(packet[1]) << 16 | uint32(packet[2]) << 8 | uint32(packet[3]))
+	case 0xfe:
+		return 8, int(
+			uint64(packet[1]) << 56 | uint64(packet[2]) << 48 | uint64(packet[3] << 40) |
+			uint64(packet[4]) << 32 | uint64(packet[5]) << 24 | uint64(packet[6]) << 16 |
+			uint64(packet[7]) <<  8 | uint64(packet[8]))
+	}
+	return 0, 0
+}
+
+// This func returns (total-length, str-content)
+// string<lenenc> := int<lenenc> + string<lenenc>
+func decodeLengthEncodedString(packet []byte) (int, string) {
+	ilen := 0
+	slen := 0
+	if packet[0] == 0x00 {
+		return 0, ""
+	}
+	if packet[0] < 0xfc {
+		ilen = 1
+		slen = int(uint8(packet[0]))
+	}
+	switch packet[0] {
+	case 0xfc:
+		ilen = 2
+		slen = int(uint32(packet[1]) << 8 | uint32(packet[2]))
+	case 0xfd:
+		ilen = 3
+		slen = int(uint32(packet[1]) << 16 | uint32(packet[2]) << 8 | uint32(packet[3]))
+	case 0xfe:
+		ilen = 8
+		slen = int(
+			uint64(packet[1]) << 56 | uint64(packet[2]) << 48 | uint64(packet[3] << 40) |
+			uint64(packet[4]) << 32 | uint64(packet[5]) << 24 | uint64(packet[6]) << 16 |
+			uint64(packet[7]) <<  8 | uint64(packet[8]))
+	}
+	return ilen + slen, string(packet[ilen:ilen+slen])
 }
 
 func mapPacket(plen int, packet []byte) IMySQLPacket {
@@ -170,8 +212,8 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 	// Other packet can be identified by 5th byte value
 	switch ctype {
 	case 0x00: // OK_PACKET
-		affectedRows, alen := judgeLengthEncodedInt(packet[6:])
-		lastInsertedID, llen := judgeLengthEncodedInt(packet[6+alen:])
+		affectedRows, alen := decodeLengthEncodedInt(packet[6:])
+		lastInsertedID, llen := decodeLengthEncodedInt(packet[6+alen:])
 		offset := 6 + alen + llen
 		statusFlags := judgeStatusFlags(packet[offset : offset+2])
 		warnings := int(uint32(packet[offset+3]) | uint32(packet[offset+2])<<8)
