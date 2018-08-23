@@ -171,6 +171,7 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 	defer func() {
 		if err := recover(); err != nil && DEBUG {
 			fmt.Println("[DEBUG] Error!!!")
+			fmt.Println(err)
 		}
 	}()
 
@@ -212,9 +213,9 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 	// Other packet can be identified by 5th byte value
 	switch ctype {
 	case 0x00: // OK_PACKET
-		affectedRows, alen := decodeLengthEncodedInt(packet[6:])
-		lastInsertedID, llen := decodeLengthEncodedInt(packet[6+alen:])
-		offset := 6 + alen + llen
+		alen, affectedRows := decodeLengthEncodedInt(packet[5:])
+		llen, lastInsertedID := decodeLengthEncodedInt(packet[5+alen:])
+		offset := 5 + alen + llen
 		statusFlags := judgeStatusFlags(packet[offset : offset+2])
 		warnings := int(uint32(packet[offset+3]) | uint32(packet[offset+2])<<8)
 		return OKPacket{mHeader, &Command{OK_PACKET}, affectedRows, lastInsertedID,
@@ -241,8 +242,8 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		if plen == 1 { // OLD_AUTH_SWITCH_REQUEST
 			return OldAuthSwitchRequest{mHeader, &Command{OLD_AUTH_SWITCH_REQUEST}}
 		} else if plen == 5 { // EOF_PACKET
+			warningsCount := int(uint32(packet[5]) | uint32(packet[6])<<8)
 			flags := judgeStatusFlags(packet[7:9])
-			warningsCount := int(uint32(packet[6]) | uint32(packet[7])<<8)
 			return EOFPacket{mHeader, &Command{EOF_PACKET}, warningsCount, flags}
 		} else { // AUTH_SWITCH_REQUEST (Anyway, I assume to not be OK_PACKET here
 			for i, v := range packet[5:] {
@@ -253,7 +254,7 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 		}
 
 	case 0xff: // ERR_PACKET
-		errorCode := int(uint32(packet[6]) | uint32(packet[5])<<8)
+		errorCode := int(uint32(packet[5]) | uint32(packet[6])<<8)
 		return ERRPacket{mHeader, &Command{ERR_PACKET}, errorCode,
 			string(packet[7]), string(packet[8:14]), string(packet[14:])}
 	default:
