@@ -196,8 +196,13 @@ type HandshakeV10 struct {
 	ServerVersion              string
 	ConnectionID               int
 	AuthPluginDataPart1        string
+	LengthOfAuthPluginData     int
+	AuthPluginDataPart2        string
 	CapabilityFlagsLower2Bytes []byte
-	// Not implemented completely now ...
+	CapacityFlag               []CapacityFlag
+	CharacterSet               CharacterSet
+	StatusFlags                []GeneralPacketStatusFlag
+	AuthPluginName             string
 }
 
 type HandshakeResponse41 struct {

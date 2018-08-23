@@ -1,6 +1,8 @@
 package mysqlpacket
 
-import "fmt"
+import (
+	"fmt"
+)
 
 var (
 	DEBUG = false
@@ -14,6 +16,7 @@ func DeserializePacket(packet []byte) []IMySQLPacket {
 	for plen-nowPos > 0 {
 		pktLen := int(uint32(packet[nowPos]) | uint32(packet[nowPos+1])<<8 | uint32(packet[nowPos+2])<<16)
 		if pktLen > 65536 { // ??
+		// if pktLen > plen-nowPos { // ??
 			return []IMySQLPacket{UnknownPacket{MySQLHeader{0, 0}, &Command{UNKNOWN_PACKET}}}
 		}
 
@@ -235,8 +238,32 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 			}
 			offset := zeroPos + 1
 			cid := int(uint32(packet[offset]) | uint32(packet[offset+1])<<8 | uint32(packet[offset+2])<<16 | uint32(packet[offset+3])<<24)
+			authPluginDataPart1 := string(packet[offset+4 : offset+12])
+			flags := []GeneralPacketStatusFlag{}
+			// need lower bytes flags ??
+			if offset + 15 >= plen { // no more data
+				return HandshakeV10{mHeader, &Command{HANDSHAKE_V10}, string(packet[5:zeroPos]),
+					cid, authPluginDataPart1, 0, "",
+					[]byte{}, []CapacityFlag{}, UNKNOWN_CHARACTER_SET, flags, "",}
+			}
+			characterSet := judgeCharacterSet(packet[offset+15])
+			statusFlag := judgeStatusFlags(packet[offset+16:offset+18])
+			// need upper bytes flags ??
+			lenAuthPluginData := 0
+			if packet[offset+20] != 0x00 {
+				lenAuthPluginData = int(packet[offset+20])
+			}
+
+			authPluginDataPart2 := ""
+			l := maxInt(13, (lenAuthPluginData - 8))
+			if lenAuthPluginData != 0 {
+				authPluginDataPart2 = string(packet[offset + 31:offset+31+l])
+			}
+			authPluginName := string(packet[offset+31+l:])
+
 			return HandshakeV10{mHeader, &Command{HANDSHAKE_V10}, string(packet[5:zeroPos]),
-				cid, string(packet[offset+4 : offset+12]), packet[offset+13 : offset+15]}
+				cid, authPluginDataPart1, 0, authPluginDataPart2,
+				[]byte{}, []CapacityFlag{}, characterSet, statusFlag, authPluginName,}
 		}
 	case 0xfe:
 		if plen == 1 { // OLD_AUTH_SWITCH_REQUEST
@@ -497,4 +524,11 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 	}
 
 	return UnknownPacket{mHeader, &Command{UNKNOWN_PACKET}}
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
