@@ -129,14 +129,14 @@ func decodeLengthEncodedInt(packet []byte) (int, int) {
 	}
 	switch packet[0] {
 	case 0xfc:
-		return 2, int(uint32(packet[1])<<8 | uint32(packet[2]))
+		return 2, int(uint32(packet[2])<<8 | uint32(packet[1]))
 	case 0xfd:
-		return 3, int(uint32(packet[1])<<16 | uint32(packet[2])<<8 | uint32(packet[3]))
+		return 3, int(uint32(packet[3])<<16 | uint32(packet[2])<<8 | uint32(packet[1]))
 	case 0xfe:
 		return 8, int(
-			uint64(packet[1])<<56 | uint64(packet[2])<<48 | uint64(packet[3]<<40) |
-				uint64(packet[4])<<32 | uint64(packet[5])<<24 | uint64(packet[6])<<16 |
-				uint64(packet[7])<<8 | uint64(packet[8]))
+			uint64(packet[8])<<56 | uint64(packet[7])<<48 | uint64(packet[6]<<40) |
+				uint64(packet[5])<<32 | uint64(packet[4])<<24 | uint64(packet[3])<<16 |
+				uint64(packet[2])<<8 | uint64(packet[1]))
 	}
 	return 0, 0
 }
@@ -156,16 +156,17 @@ func decodeLengthEncodedString(packet []byte) (int, string) {
 	switch packet[0] {
 	case 0xfc:
 		ilen = 2
-		slen = int(uint32(packet[1])<<8 | uint32(packet[2]))
+		slen = int(uint32(packet[2])<<8 | uint32(packet[1]))
 	case 0xfd:
 		ilen = 3
-		slen = int(uint32(packet[1])<<16 | uint32(packet[2])<<8 | uint32(packet[3]))
+		slen = int(uint32(packet[3])<<16 | uint32(packet[2])<<8 | uint32(packet[1]))
 	case 0xfe:
 		ilen = 8
+
 		slen = int(
-			uint64(packet[1])<<56 | uint64(packet[2])<<48 | uint64(packet[3]<<40) |
-				uint64(packet[4])<<32 | uint64(packet[5])<<24 | uint64(packet[6])<<16 |
-				uint64(packet[7])<<8 | uint64(packet[8]))
+			uint64(packet[8])<<56 | uint64(packet[7])<<48 | uint64(packet[6]<<40) |
+				uint64(packet[5])<<32 | uint64(packet[4])<<24 | uint64(packet[3])<<16 |
+				uint64(packet[2])<<8 | uint64(packet[1]))
 	}
 	return ilen + slen, string(packet[ilen : ilen+slen])
 }
