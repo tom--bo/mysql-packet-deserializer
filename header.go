@@ -193,16 +193,15 @@ type MySQLHeader struct {
 type HandshakeV10 struct {
 	Header MySQLHeader
 	*Command
-	ServerVersion              string
-	ConnectionID               int
-	AuthPluginDataPart1        string
-	LengthOfAuthPluginData     int
-	AuthPluginDataPart2        string
-	CapabilityFlagsLower2Bytes []byte
-	CapacityFlag               []CapacityFlag
-	CharacterSet               CharacterSet
-	StatusFlags                []GeneralPacketStatusFlag
-	AuthPluginName             string
+	ServerVersion          string
+	ConnectionID           int
+	AuthPluginDataPart1    string
+	LengthOfAuthPluginData int
+	AuthPluginDataPart2    string
+	CapacityFlag           []CapacityFlag
+	CharacterSet           CharacterSet
+	StatusFlags            []GeneralPacketStatusFlag
+	AuthPluginName         string
 }
 
 type HandshakeResponse41 struct {

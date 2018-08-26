@@ -16,7 +16,7 @@ func DeserializePacket(packet []byte) []IMySQLPacket {
 	for plen-nowPos > 0 {
 		pktLen := int(uint32(packet[nowPos]) | uint32(packet[nowPos+1])<<8 | uint32(packet[nowPos+2])<<16)
 		if pktLen > 65536 { // ??
-		// if pktLen > plen-nowPos { // ??
+			// if pktLen > plen-nowPos { // ??
 			return []IMySQLPacket{UnknownPacket{MySQLHeader{0, 0}, &Command{UNKNOWN_PACKET}}}
 		}
 
@@ -34,10 +34,9 @@ func DeserializePacket(packet []byte) []IMySQLPacket {
 	return mysqlPackets
 }
 
-func judgeCapacityFlags(packets []byte) []CapacityFlag {
+func judgeLowerCapacityFlags(packets []byte) []CapacityFlag {
 	ret := []CapacityFlag{}
-
-	firstByte := map[int]CapacityFlag{
+	upperFlag := map[int]CapacityFlag{
 		0x0001: CLIENT_LONG_PASSWORD,
 		0x0002: CLIENT_FOUND_ROWS,
 		0x0004: CLIENT_LONG_FLAG,
@@ -55,7 +54,20 @@ func judgeCapacityFlags(packets []byte) []CapacityFlag {
 		0x4000: CLIENT_RESERVED,
 		0x8000: CLIENT_SECURE_CONNECTION,
 	}
-	secondByte := map[int]CapacityFlag{
+	upper := int(uint32(packets[1])<<8 | uint32(packets[0]))
+
+	for k, v := range upperFlag {
+		if upper&k == k {
+			ret = append(ret, v)
+		}
+	}
+	return ret
+}
+
+func judgeUpperCapacityFlags(packets []byte) []CapacityFlag {
+	ret := []CapacityFlag{}
+
+	lowerFlag := map[int]CapacityFlag{
 		0x0001: CLIENT_MULTI_STATEMENTS,
 		0x0002: CLIENT_MULTI_RESULTS,
 		0x0004: CLIENT_PS_MULTI_RESULTS,
@@ -67,19 +79,22 @@ func judgeCapacityFlags(packets []byte) []CapacityFlag {
 		0x0100: CLIENT_DEPRECATE_EOF,
 	}
 
-	first2 := int(packets[0]<<8 | packets[1])
-	second2 := int(packets[2]<<8 | packets[3])
+	lower := int(uint32(packets[1])<<8 | uint32(packets[0]))
 
-	for k, v := range firstByte {
-		if first2&k == k {
+	for k, v := range lowerFlag {
+		if lower&k == k {
 			ret = append(ret, v)
 		}
 	}
-	for k, v := range secondByte {
-		if second2&k == k {
-			ret = append(ret, v)
-		}
-	}
+
+	return ret
+}
+
+func judgeCapacityFlags(packets []byte) []CapacityFlag {
+	ret := []CapacityFlag{}
+
+	ret = append(ret, judgeLowerCapacityFlags(packets[0:2])...)
+	ret = append(ret, judgeUpperCapacityFlags(packets[2:4])...)
 
 	return ret
 }
@@ -109,7 +124,7 @@ func judgeStatusFlags(packet []byte) []GeneralPacketStatusFlag {
 		0x4000: SERVER_SESSION_STATE_CHANGED,
 	}
 
-	byte2 := int(packet[0]<<8 | packet[1])
+	byte2 := int(packet[1]<<8 | packet[0])
 
 	for k, v := range generalStatus {
 		if byte2&k == k {
@@ -187,7 +202,7 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 	 * general response or connection phase packet
 	 */
 
-	// At first, judge no header packet (Header + 9~31 byte are all 00)
+	// At first, judge no header packet (Header + 13~35 byte are all 00)
 	// HandshakeResponse41 or SSLRequest
 	if plen > 35 {
 		allZero := true
@@ -197,10 +212,10 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 			}
 		}
 		if allZero {
-			flags := judgeCapacityFlags(packet[5:9])
-			maxPacketSize := int(uint32(packet[10]) | uint32(packet[11])<<8 | uint32(packet[12])<<16 | uint32(packet[13])<<24)
-			cset := judgeCharacterSet(packet[14])
-			if plen <= 36 { // SSL_REQUEST
+			flags := judgeCapacityFlags(packet[4:8])
+			maxPacketSize := int(uint32(packet[8]) | uint32(packet[9])<<8 | uint32(packet[10])<<16 | uint32(packet[11])<<24)
+			cset := judgeCharacterSet(packet[12])
+			if plen <= 36 { // SSL_REQUESj
 				return SSLRequest{mHeader, &Command{SSL_REQUEST}, flags, maxPacketSize, cset}
 			} else { // HANDSHAKE_RESPONSE41
 				// HANDSHAKE_RESPONSE41 is not completely implemented
@@ -240,16 +255,18 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 			offset := zeroPos + 1
 			cid := int(uint32(packet[offset]) | uint32(packet[offset+1])<<8 | uint32(packet[offset+2])<<16 | uint32(packet[offset+3])<<24)
 			authPluginDataPart1 := string(packet[offset+4 : offset+12])
+			// packet[offset+12] is [00]
+			cFlags := []CapacityFlag{}
+			cFlags = append(cFlags, judgeLowerCapacityFlags(packet[offset+13:offset+15])...)
 			flags := []GeneralPacketStatusFlag{}
-			// need lower bytes flags ??
-			if offset + 15 >= plen { // no more data
+			if offset+15 >= plen { // no more data
 				return HandshakeV10{mHeader, &Command{HANDSHAKE_V10}, string(packet[5:zeroPos]),
 					cid, authPluginDataPart1, 0, "",
-					[]byte{}, []CapacityFlag{}, UNKNOWN_CHARACTER_SET, flags, "",}
+					cFlags, UNKNOWN_CHARACTER_SET, flags, ""}
 			}
 			characterSet := judgeCharacterSet(packet[offset+15])
-			statusFlag := judgeStatusFlags(packet[offset+16:offset+18])
-			// need upper bytes flags ??
+			flags = append(flags, judgeStatusFlags(packet[offset+16:offset+18])...)
+			cFlags = append(cFlags, judgeUpperCapacityFlags(packet[offset+18:offset+20])...)
 			lenAuthPluginData := 0
 			if packet[offset+20] != 0x00 {
 				lenAuthPluginData = int(packet[offset+20])
@@ -258,13 +275,13 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 			authPluginDataPart2 := ""
 			l := maxInt(13, (lenAuthPluginData - 8))
 			if lenAuthPluginData != 0 {
-				authPluginDataPart2 = string(packet[offset + 31:offset+31+l])
+				authPluginDataPart2 = string(packet[offset+31 : offset+31+l])
 			}
 			authPluginName := string(packet[offset+31+l:])
 
 			return HandshakeV10{mHeader, &Command{HANDSHAKE_V10}, string(packet[5:zeroPos]),
 				cid, authPluginDataPart1, 0, authPluginDataPart2,
-				[]byte{}, []CapacityFlag{}, characterSet, statusFlag, authPluginName,}
+				cFlags, characterSet, flags, authPluginName}
 		}
 	case 0xfe:
 		if plen == 1 { // OLD_AUTH_SWITCH_REQUEST
