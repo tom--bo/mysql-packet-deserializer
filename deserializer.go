@@ -595,7 +595,7 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 			slavesMySQLPort, replicationRank, masterID,
 		}
 	case 0x16: // COM_STMT_PREPARE
-		return ComSTMTPrepare{mHeader, &Command{COM_STMT_PREPARE}, string(packet[5:plen])}
+		return ComSTMTPrepare{mHeader, &Command{COM_STMT_PREPARE}, string(packet[5:4+plen])}
 	case 0x17: // COM_STMT_EXECUTE
 		// COM_STMT_EXECUTE is not completely supported...
 		sid := int(uint32(packet[5]) | uint32(packet[6])<<8 | uint32(packet[7])<<16 | uint32(packet[8])<<24)
