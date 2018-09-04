@@ -283,6 +283,42 @@ const (
 	COM_STMT_EXECUTE_FLAG_UNKONWN                     = "COM_STMT_EXECUTE_FLAG_UNKONWN"
 )
 
+type ColumnType string
+
+const (
+	TYPE_DECIMAL     ColumnType = "TYPE_DECIMAL"
+	TYPE_TINY                   = "TYPE_TINY"
+	TYPE_SHORT                  = "TYPE_SHORT"
+	TYPE_LONG                   = "TYPE_LONG"
+	TYPE_FLOAT                  = "TYPE_FLOAT"
+	TYPE_DOUBLE                 = "TYPE_DOUBLE"
+	TYPE_NULL                   = "TYPE_NULL"
+	TYPE_TIMESTAMP              = "TYPE_TIMESTAMP"
+	TYPE_LONGLONG               = "TYPE_LONGLONG"
+	TYPE_INT24                  = "TYPE_INT24"
+	TYPE_DATE                   = "TYPE_DATE"
+	TYPE_TIME                   = "TYPE_TIME"
+	TYPE_DATETIME               = "TYPE_DATETIME"
+	TYPE_YEAR                   = "TYPE_YEAR"
+	TYPE_NEWDATE                = "TYPE_NEWDATE"
+	TYPE_VARCHAR                = "TYPE_VARCHAR"
+	TYPE_BIT                    = "TYPE_BIT"
+	TYPE_TIMESTAMP2             = "TYPE_TIMESTAMP2"
+	TYPE_DATETIME2              = "TYPE_DATETIME2"
+	TYPE_TIME2                  = "TYPE_TIME2"
+	TYPE_NEWDECIMAL             = "TYPE_NEWDECIMAL"
+	TYPE_ENUM                   = "TYPE_ENUM"
+	TYPE_SET                    = "TYPE_SET"
+	TYPE_TINY_BLOB              = "TYPE_TINY_BLOB"
+	TYPE_MEDIUM_BLOB            = "TYPE_MEDIUM_BLOB"
+	TYPE_LONG_BLOB              = "TYPE_LONG_BLOB"
+	TYPE_BLOB                   = "TYPE_BLOB"
+	TYPE_VAR_STRING             = "TYPE_VAR_STRING"
+	TYPE_STRING                 = "TYPE_STRING"
+	TYPE_GEOMETRY               = "TYPE_GEOMETRY"
+	TYPE_UNKNOWN                = "TYPE_UNKNOWN"
+)
+
 /*
  * MySQL Common Header
  */

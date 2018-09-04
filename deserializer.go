@@ -262,6 +262,50 @@ func judgeStatusFlags(packet []byte) []GeneralPacketStatusFlag {
 	return ret
 }
 
+func judgeColumnType(p byte) ColumnType {
+	columnType := map[int]ColumnType{
+		0x00: TYPE_DECIMAL,
+		0x01: TYPE_TINY,
+		0x02: TYPE_SHORT,
+		0x03: TYPE_LONG,
+		0x04: TYPE_FLOAT,
+		0x05: TYPE_DOUBLE,
+		0x06: TYPE_NULL,
+		0x07: TYPE_TIMESTAMP,
+		0x08: TYPE_LONGLONG,
+		0x09: TYPE_INT24,
+		0x0a: TYPE_DATE,
+		0x0b: TYPE_TIME,
+		0x0c: TYPE_DATETIME,
+		0x0d: TYPE_YEAR,
+		0x0e: TYPE_NEWDATE,
+		0x0f: TYPE_VARCHAR,
+		0x10: TYPE_BIT,
+		0x11: TYPE_TIMESTAMP2,
+		0x12: TYPE_DATETIME2,
+		0x13: TYPE_TIME2,
+		0xf6: TYPE_NEWDECIMAL,
+		0xf7: TYPE_ENUM,
+		0xf8: TYPE_SET,
+		0xf9: TYPE_TINY_BLOB,
+		0xfa: TYPE_MEDIUM_BLOB,
+		0xfb: TYPE_LONG_BLOB,
+		0xfc: TYPE_BLOB,
+		0xfd: TYPE_VAR_STRING,
+		0xfe: TYPE_STRING,
+		0xff: TYPE_GEOMETRY,
+	}
+	pint := int(p)
+
+	for k, v := range columnType {
+		if pint&k == k {
+			return v
+		}
+	}
+
+	return TYPE_UNKNOWN
+}
+
 func decodeLengthEncodedInt(packet []byte) (int, int) {
 	if packet[0] == 0x00 {
 		return 0, 0
@@ -595,7 +639,7 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 			slavesMySQLPort, replicationRank, masterID,
 		}
 	case 0x16: // COM_STMT_PREPARE
-		return ComSTMTPrepare{mHeader, &Command{COM_STMT_PREPARE}, string(packet[5:4+plen])}
+		return ComSTMTPrepare{mHeader, &Command{COM_STMT_PREPARE}, string(packet[5 : 4+plen])}
 	case 0x17: // COM_STMT_EXECUTE
 		// COM_STMT_EXECUTE is not completely supported...
 		sid := int(uint32(packet[5]) | uint32(packet[6])<<8 | uint32(packet[7])<<16 | uint32(packet[8])<<24)
