@@ -1,6 +1,7 @@
 package mysqlpacket
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -8,7 +9,61 @@ var (
 	DEBUG = false
 )
 
-func DeserializePacket(packet []byte) []IMySQLPacket {
+type Deserializer struct {
+	Connections map[string]connectionState
+}
+
+type connectionState struct {
+	State int
+	flags map[CapacityFlag]int
+}
+
+func NewDeserializer() Deserializer {
+	var des Deserializer
+	return des
+}
+
+func createInitialStateFlags() map[CapacityFlag]int {
+	ret := make(map[CapacityFlag]int, 25)
+	ret[CLIENT_LONG_PASSWORD] = 0
+	ret[CLIENT_FOUND_ROWS] = 0
+	ret[CLIENT_LONG_FLAG] = 0
+	ret[CLIENT_CONNECT_WITH_DB] = 0
+	ret[CLIENT_NO_SCHEMA] = 0
+	ret[CLIENT_COMPRESS] = 0
+	ret[CLIENT_ODBC] = 0
+	ret[CLIENT_LOCAL_FILES] = 0
+	ret[CLIENT_IGNORE_SPACE] = 0
+	ret[CLIENT_41] = 0
+	ret[CLIENT_INTERACTIVE] = 0
+	ret[CLIENT_SSL] = 0
+	ret[CLIENT_IGNORE_SIGPIPE] = 0
+	ret[CLIENT_TRANSACTIONS] = 0
+	ret[CLIENT_RESERVED] = 0
+	ret[CLIENT_SECURE_CONNECTION] = 0
+	ret[CLIENT_MULTI_STATEMENTS] = 0
+	ret[CLIENT_MULTI_RESULTS] = 0
+	ret[CLIENT_PS_MULTI_RESULTS] = 0
+	ret[CLIENT_PLUGIN_AUTH] = 0
+	ret[CLIENT_CONNECT_ATTRS] = 0
+	ret[CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA] = 0
+	ret[CLIENT_CAN_HANDLE_EXPIRED_PASSWORD] = 0
+	ret[CLIENT_SESSION_TRACK] = 0
+	ret[CLIENT_DEPRECATE_EOF] = 0
+
+	return ret
+}
+
+func (d *Deserializer) AddConnection(host string) {
+	cs := connectionState{INITIAL, createInitialStateFlags()}
+	d.Connections[host] = cs
+}
+
+func (d *Deserializer) DeserializePacket(host string, packet []byte) []IMySQLPacket {
+	if connState, ok := d.Connections[host]; !ok {
+		d.AddConnection(host)
+	}
+
 	plen := len(packet)
 	nowPos := 0
 	mysqlPackets := []IMySQLPacket{}
@@ -355,6 +410,25 @@ func decodeLengthEncodedString(packet []byte) (int, string) {
 				uint64(packet[2])<<8 | uint64(packet[1]))
 	}
 	return ilen + slen, string(packet[ilen : ilen+slen])
+}
+
+// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase.html
+// SSL handshake not yet
+func (d *Deserializer) deserializeInitialHandshake(host string, packet []byte) error {
+	s := d.Connections[host].State
+
+	if s == 0 { // Expect SERVER GREETING from server
+		if len(packet) < 5 || packet[3] != 0x00 || packet[4] != 0x0a {
+			return errors.New("Not server_greeting")
+		}
+		// parse as server greeting
+
+	} else if (s == 1) { // Expect LOGIN REQUEST from client
+		// HandshakeResponse41
+	} else if (s == 2) { // Expect Response for LOGIN REQUEST from server
+	  // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_ok_packet.html
+	}
+	return nil
 }
 
 func mapPacket(plen int, packet []byte) IMySQLPacket {

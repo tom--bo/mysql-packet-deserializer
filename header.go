@@ -1,5 +1,17 @@
 package mysqlpacket
 
+
+const (
+	INITIAL int = 0
+	GREETING
+	REQUESTING
+	LOGINED
+	QUERIED
+	STMT_PREPARING
+	STMT_PREPARED
+	STMT_EXECUTING
+)
+
 type CommandType string
 
 const (
