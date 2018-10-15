@@ -8,7 +8,6 @@ import (
 var (
 	DEBUG = false
 )
-
 type Deserializer struct {
 	Connections map[string]connectionState
 }
@@ -55,13 +54,18 @@ func createInitialStateFlags() map[CapacityFlag]int {
 }
 
 func (d *Deserializer) AddConnection(host string) {
-	cs := connectionState{INITIAL, createInitialStateFlags()}
+	cs := connectionState{STATE_INITIAL, createInitialStateFlags()}
 	d.Connections[host] = cs
 }
 
-func (d *Deserializer) DeserializePacket(host string, packet []byte) []IMySQLPacket {
-	if connState, ok := d.Connections[host]; !ok {
+func (d *Deserializer) DeserializePacket(host string, packet []byte) ([]IMySQLPacket, error) {
+	connState, ok := d.Connections[host]
+	if !ok {
 		d.AddConnection(host)
+	}
+	if connState.State < STATE_LOGINED {
+		iPacket, err := d.deserializeInitialHandshake(host, packet)
+		return iPacket, err
 	}
 
 	plen := len(packet)
@@ -72,7 +76,7 @@ func (d *Deserializer) DeserializePacket(host string, packet []byte) []IMySQLPac
 		pktLen := int(uint32(packet[nowPos]) | uint32(packet[nowPos+1])<<8 | uint32(packet[nowPos+2])<<16)
 		if pktLen > 65536 { // ??
 			// if pktLen > plen-nowPos { // ??
-			return []IMySQLPacket{UnknownPacket{MySQLHeader{0, 0}, &Command{UNKNOWN_PACKET}}}
+			return []IMySQLPacket{}, errors.New("Unknown Packet")
 		}
 
 		p := mapPacket(pktLen, packet[nowPos:nowPos+(4+pktLen)])
@@ -86,7 +90,7 @@ func (d *Deserializer) DeserializePacket(host string, packet []byte) []IMySQLPac
 		break
 	}
 
-	return mysqlPackets
+	return mysqlPackets, nil
 }
 
 func judgeLowerCapacityFlags(packets []byte) []CapacityFlag {
@@ -414,21 +418,81 @@ func decodeLengthEncodedString(packet []byte) (int, string) {
 
 // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase.html
 // SSL handshake not yet
-func (d *Deserializer) deserializeInitialHandshake(host string, packet []byte) error {
+func (d *Deserializer) deserializeInitialHandshake(host string, packet []byte) ([]IMySQLPacket, error) {
 	s := d.Connections[host].State
+	plen := len(packet)
+	if plen < 5 {
+		return []IMySQLPacket{}, errors.New("Not HandshakeV10")
+	}
+	sid := int(packet[3])
+	mHeader := MySQLHeader{uint32(plen), uint8(sid)}
+	ret := make([]IMySQLPacket, 1)
 
 	if s == 0 { // Expect SERVER GREETING from server
-		if len(packet) < 5 || packet[3] != 0x00 || packet[4] != 0x0a {
-			return errors.New("Not server_greeting")
+		if plen < 5 || packet[3] != 0x00 || packet[4] != 0x0a {
+			return []IMySQLPacket{}, errors.New("Not HandshakeV10")
 		}
 		// parse as server greeting
+		zeroPos := 0
+		for i := 5; i < plen; i++ {
+			if packet[i] == 0x00 {
+				zeroPos = i
+				break
+			}
+		}
+		offset := zeroPos + 1
 
+		if plen < offset + 25 { // the minimal pattern (more_data = false)
+			return []IMySQLPacket{}, errors.New("Not HandshakeV10")
+		}
+		cid := int(uint32(packet[offset]) | uint32(packet[offset+1])<<8 | uint32(packet[offset+2])<<16 | uint32(packet[offset+3])<<24)
+		authPluginDataPart1 := string(packet[offset+4 : offset+12])
+		// packet[offset+12] is [00]
+		cFlags := []CapacityFlag{}
+		cFlags = append(cFlags, judgeLowerCapacityFlags(packet[offset+13:offset+15])...)
+		flags := []GeneralPacketStatusFlag{}
+		if plen <= offset+25 { // no more data
+			ret[0] = HandshakeV10{mHeader, &Command{HANDSHAKE_V10}, string(packet[5:zeroPos]),
+				cid, authPluginDataPart1, 0, "",
+				cFlags, UNKNOWN_CHARACTER_SET, flags, ""}
+			return ret, nil
+		}
+		if plen < offset + 30 { // second pattern (more_data = true)
+			return []IMySQLPacket{}, errors.New("Not HandshakeV10")
+		}
+		characterSet := judgeCharacterSet(packet[offset+15])
+		flags = append(flags, judgeStatusFlags(packet[offset+16:offset+18])...)
+		cFlags = append(cFlags, judgeUpperCapacityFlags(packet[offset+18:offset+20])...)
+		lenAuthPluginData := int(packet[offset+20])
+
+		authPluginDataPart2 := ""
+		l := maxInt(13, (lenAuthPluginData - 8))
+		if cFlags.contains(CLIENT_PLUGIN_AUTH) { // cFlags need to be struct ??
+			if plen != offset+31+l {
+				return []IMySQLPacket{}, errors.New("Not HandshakeV10")
+			}
+			authPluginDataPart2 = string(packet[offset+31:offset+31+l])
+		}
+		authPluginName := string(packet[offset+31+l:])
+
+		ret[0] =  HandshakeV10{mHeader, &Command{HANDSHAKE_V10}, string(packet[5:zeroPos]),
+			cid, authPluginDataPart1, 0, authPluginDataPart2,
+			cFlags, characterSet, flags, authPluginName}
+		return ret, nil
 	} else if (s == 1) { // Expect LOGIN REQUEST from client
 		// HandshakeResponse41
+
 	} else if (s == 2) { // Expect Response for LOGIN REQUEST from server
 	  // https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_ok_packet.html
+
+	} else if (s == 3) {
+		// TBD
+		return []IMySQLPacket{},, errors.New("State is not correct")
+	} else if (s == 4) {
+		// TBD
+		return []IMySQLPacket{},, errors.New("State is not correct")
 	}
-	return nil
+	return []IMySQLPacket{},, errors.New("State is not correct")
 }
 
 func mapPacket(plen int, packet []byte) IMySQLPacket {
@@ -487,46 +551,6 @@ func mapPacket(plen int, packet []byte) IMySQLPacket {
 	case 0x01: // AUTH_SWITCH_REQUEST
 		if plen > 1 {
 			return AuthMoreData{mHeader, &Command{AUTH_MORE_DATA}, string(packet[5:])}
-		}
-	case 0x0a: // HANDSHAKE_V10
-		if plen > 1 {
-			zeroPos := plen
-			for i := 5; i < plen+5; i++ {
-				if packet[i] == 0x00 {
-					zeroPos = i
-					break
-				}
-			}
-			offset := zeroPos + 1
-			cid := int(uint32(packet[offset]) | uint32(packet[offset+1])<<8 | uint32(packet[offset+2])<<16 | uint32(packet[offset+3])<<24)
-			authPluginDataPart1 := string(packet[offset+4 : offset+12])
-			// packet[offset+12] is [00]
-			cFlags := []CapacityFlag{}
-			cFlags = append(cFlags, judgeLowerCapacityFlags(packet[offset+13:offset+15])...)
-			flags := []GeneralPacketStatusFlag{}
-			if offset+15 >= plen { // no more data
-				return HandshakeV10{mHeader, &Command{HANDSHAKE_V10}, string(packet[5:zeroPos]),
-					cid, authPluginDataPart1, 0, "",
-					cFlags, UNKNOWN_CHARACTER_SET, flags, ""}
-			}
-			characterSet := judgeCharacterSet(packet[offset+15])
-			flags = append(flags, judgeStatusFlags(packet[offset+16:offset+18])...)
-			cFlags = append(cFlags, judgeUpperCapacityFlags(packet[offset+18:offset+20])...)
-			lenAuthPluginData := 0
-			if packet[offset+20] != 0x00 {
-				lenAuthPluginData = int(packet[offset+20])
-			}
-
-			authPluginDataPart2 := ""
-			l := maxInt(13, (lenAuthPluginData - 8))
-			if lenAuthPluginData != 0 {
-				authPluginDataPart2 = string(packet[offset+31 : offset+31+l])
-			}
-			authPluginName := string(packet[offset+31+l:])
-
-			return HandshakeV10{mHeader, &Command{HANDSHAKE_V10}, string(packet[5:zeroPos]),
-				cid, authPluginDataPart1, 0, authPluginDataPart2,
-				cFlags, characterSet, flags, authPluginName}
 		}
 	case 0xfe:
 		if plen == 1 { // OLD_AUTH_SWITCH_REQUEST
