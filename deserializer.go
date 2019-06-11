@@ -15,8 +15,7 @@ func DeserializePacket(packet []byte) []IMySQLPacket {
 
 	for plen-nowPos > 2 {
 		pktLen := int(uint32(packet[nowPos]) | uint32(packet[nowPos+1])<<8 | uint32(packet[nowPos+2])<<16)
-		if pktLen > 65536 || plen < nowPos+(4+pktLen)-1 { // ??
-			// if pktLen > plen-nowPos { // ??
+		if pktLen > 65536 || plen < nowPos+(4+pktLen) { // Todo
 			return []IMySQLPacket{UnknownPacket{MySQLHeader{0, 0}, &Command{UNKNOWN_PACKET}}}
 		}
 
