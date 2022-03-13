@@ -1,9 +1,5 @@
 package mysqlpacket
 
-import (
-	"fmt"
-)
-
 var (
 	DEBUG = false
 )
@@ -359,8 +355,9 @@ func decodeLengthEncodedString(packet []byte) (int, string) {
 func mapPacket(plen int, packet []byte) IMySQLPacket {
 	defer func() {
 		if err := recover(); err != nil && DEBUG {
-			fmt.Println("[DEBUG] Error!!!")
-			fmt.Println(err)
+			// TBD return err (?)
+			// fmt.Println("[DEBUG] Error!!!")
+			// fmt.Println(err)
 		}
 	}()
 
